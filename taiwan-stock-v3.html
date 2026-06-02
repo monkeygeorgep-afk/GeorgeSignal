@@ -1,0 +1,1535 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>台股分析系統 v2</title>
+<script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0a0e1a;--bg2:#111827;--bg3:#1a2235;--border:#1e2d45;
+  --accent:#00d4ff;--accent2:#7c3aed;
+  --green:#10b981;--red:#ef4444;--amber:#f59e0b;--purple:#a78bfa;
+  --text:#e2e8f0;--text2:#94a3b8;--text3:#475569;
+  --card:#131c2e;
+  --font:'Noto Sans TC',sans-serif;--mono:'JetBrains Mono',monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14px;overflow-x:hidden;min-height:100vh}
+
+/* ─ Topbar ─ */
+.topbar{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 16px;height:52px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:200}
+.logo{font-size:15px;font-weight:700;color:var(--accent);letter-spacing:.04em;display:flex;align-items:center;gap:6px}
+.logo-sub{color:var(--text2);font-weight:300;font-size:11px}
+.v2-badge{background:linear-gradient(135deg,#7c3aed,#00d4ff);color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:4px}
+
+/* ─ Search ─ */
+.search-wrap{padding:10px 16px;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;gap:8px}
+.search-input{flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-family:var(--font);font-size:14px;outline:none;transition:border-color .2s}
+.search-input:focus{border-color:var(--accent)}
+.search-input::placeholder{color:var(--text3)}
+.search-btn{background:var(--accent);color:#000;border:none;border-radius:8px;padding:8px 14px;font-weight:700;font-size:13px;cursor:pointer;font-family:var(--font)}
+
+/* ─ Watchlist ─ */
+.watchlist{padding:8px 16px;border-bottom:1px solid var(--border);background:var(--bg2);display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}
+.watchlist::-webkit-scrollbar{display:none}
+.wl-chip{padding:3px 10px;border-radius:20px;background:var(--bg3);border:1px solid var(--border);font-size:11px;color:var(--text2);cursor:pointer;transition:all .15s;font-family:var(--mono);white-space:nowrap;flex-shrink:0}
+.wl-chip:hover,.wl-chip.active{border-color:var(--accent);color:var(--accent)}
+
+/* ─ Quote ─ */
+.quote-header{padding:12px 16px;background:var(--card);border-bottom:1px solid var(--border);display:none}
+.quote-name{font-size:12px;color:var(--text2)}
+.quote-main{display:flex;align-items:baseline;gap:10px;margin:4px 0 2px}
+.quote-price{font-size:28px;font-weight:700;font-family:var(--mono)}
+.quote-price.up{color:var(--red)}.quote-price.dn{color:var(--green)}
+.quote-change{font-size:13px}
+.quote-change.up{color:var(--red)}.quote-change.dn{color:var(--green)}
+.quote-meta{display:flex;gap:14px;flex-wrap:wrap;margin-top:6px}
+.meta-item{font-size:11px;color:var(--text2)}
+.meta-item strong{color:var(--text);font-family:var(--mono)}
+.quote-score-wrap{margin-top:8px;display:flex;align-items:center;gap:8px}
+.score-label{font-size:11px;color:var(--text2)}
+.score-meter{flex:1;height:6px;background:var(--bg3);border-radius:3px;overflow:hidden;max-width:200px}
+.score-fill{height:100%;border-radius:3px;transition:width .6s,background .6s}
+.score-num{font-size:12px;font-family:var(--mono);font-weight:700}
+
+/* ─ Tabs ─ */
+.tabs{display:flex;background:var(--bg2);border-bottom:1px solid var(--border);overflow-x:auto;scrollbar-width:none;position:sticky;top:52px;z-index:150}
+.tabs::-webkit-scrollbar{display:none}
+.tab{padding:10px 15px;font-size:12px;color:var(--text2);cursor:pointer;white-space:nowrap;border-bottom:2px solid transparent;transition:all .2s;flex-shrink:0}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tab-content{display:none}
+.tab-content.active{display:block}
+
+/* ─ Period bar ─ */
+.period-bar{display:flex;gap:5px;padding:8px 16px;background:var(--bg2);border-bottom:1px solid var(--border)}
+.period-btn{padding:3px 10px;border-radius:6px;font-size:11px;font-weight:500;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--text2);font-family:var(--font);transition:all .15s}
+.period-btn.active{background:var(--accent);color:#000;border-color:var(--accent)}
+
+/* ─ Chart section ─ */
+.chart-section{background:var(--card)}
+.chart-wrap{position:relative;height:300px}
+#klineChart{width:100%;height:100%}
+.boll-legend{display:flex;gap:10px;padding:3px 12px 4px;font-size:10px;background:var(--bg2);flex-wrap:wrap}
+.boll-item{display:flex;align-items:center;gap:4px;color:var(--text2)}
+.boll-line{width:14px;height:2px;border-radius:1px}
+.indicator-panel{border-top:1px solid var(--border)}
+.ind-header{padding:4px 12px;font-size:11px;display:flex;align-items:center;gap:8px;background:var(--bg2);border-bottom:1px solid var(--border)}
+.ind-label{display:flex;align-items:center;gap:3px;color:var(--text3)}
+.ind-dot{width:8px;height:2px;border-radius:1px;display:inline-block}
+#macdChart,#rsiChart,#kdChart{width:100%;height:100px;background:var(--bg3)}
+
+/* ─ VP Section ─ */
+.vp-section{padding:12px 16px;background:var(--card);border-top:1px solid var(--border)}
+#vpCanvas{width:100%;height:240px;display:block}
+
+/* ─ Section common ─ */
+.section{padding:14px 16px;background:var(--card);border-top:1px solid var(--border)}
+.section-title{font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.section-title::before{content:'';width:3px;height:14px;background:var(--accent);border-radius:2px}
+
+/* ─ Chips ─ */
+.chips-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.chip-card{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:10px}
+.chip-lbl{font-size:11px;color:var(--text2);margin-bottom:4px}
+.chip-val{font-size:18px;font-weight:700;font-family:var(--mono)}
+.chip-val.buy{color:var(--red)}.chip-val.sell{color:var(--green)}
+.chip-sub{font-size:11px;color:var(--text3);margin-top:2px}
+.orders-tbl{width:100%;border-collapse:collapse;font-size:12px}
+.orders-tbl th{color:var(--text3);font-weight:500;padding:5px 6px;text-align:left;border-bottom:1px solid var(--border)}
+.orders-tbl td{padding:6px 6px;border-bottom:1px solid var(--border);font-family:var(--mono)}
+.orders-tbl tr:last-child td{border-bottom:none}
+.buy-side{color:var(--red)}.sell-side{color:var(--green)}
+
+/* ─ Signals ─ */
+.signal-list{display:flex;flex-direction:column;gap:8px}
+.signal-item{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:11px;display:flex;gap:10px;cursor:pointer;transition:border-color .15s}
+.signal-item:hover{border-color:var(--accent)}
+.sig-icon{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.sig-icon.bullish{background:rgba(239,68,68,.15)}
+.sig-icon.bearish{background:rgba(16,185,129,.15)}
+.sig-icon.neutral{background:rgba(245,158,11,.15)}
+.sig-body{flex:1;min-width:0}
+.sig-title{font-size:13px;font-weight:500;color:var(--text)}
+.sig-desc{font-size:11px;color:var(--text2);margin-top:2px;line-height:1.5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sig-meta{display:flex;align-items:center;gap:6px;margin-top:5px;flex-wrap:wrap}
+.badge{font-size:10px;padding:2px 7px;border-radius:4px;font-weight:700}
+.badge-bull{background:rgba(239,68,68,.15);color:var(--red)}
+.badge-bear{background:rgba(16,185,129,.15);color:var(--green)}
+.badge-warn{background:rgba(245,158,11,.15);color:var(--amber)}
+.badge-info{background:rgba(0,212,255,.12);color:var(--accent)}
+.strength-bar{display:flex;gap:2px}
+.sdot{width:6px;height:6px;border-radius:2px;background:var(--border)}
+.sdot.bull{background:var(--red)}.sdot.bear{background:var(--green)}.sdot.warn{background:var(--amber)}
+
+/* ─ History ─ */
+.history-list{display:flex;flex-direction:column;gap:5px}
+.history-item{background:var(--bg3);border-left:3px solid;border-radius:0 8px 8px 0;padding:8px 10px;display:flex;justify-content:space-between}
+.history-item.bull{border-color:var(--red)}.history-item.bear{border-color:var(--green)}.history-item.warn{border-color:var(--amber)}
+.hi-title{font-size:12px;font-weight:500;color:var(--text)}
+.hi-time{font-size:10px;color:var(--text3);font-family:var(--mono);flex-shrink:0}
+
+/* ─ Scanner ─ */
+.scan-wl-box{background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:12px}
+.scan-wl-title{font-size:12px;font-weight:700;color:var(--text2);margin-bottom:8px}
+.scan-tags{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px}
+.scan-tag{padding:3px 8px;border-radius:6px;background:var(--bg2);border:1px solid var(--border);font-size:11px;color:var(--text2);display:flex;align-items:center;gap:5px;font-family:var(--mono)}
+.scan-tag-del{cursor:pointer;color:var(--text3);font-size:14px;line-height:1}
+.scan-tag-del:hover{color:var(--red)}
+.scan-add-row{display:flex;gap:6px}
+.scan-add-input{flex:1;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:5px 10px;color:var(--text);font-family:var(--mono);font-size:12px;outline:none}
+.scan-add-input:focus{border-color:var(--accent)}
+.scan-add-btn{background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--text2);font-size:12px;padding:5px 12px;cursor:pointer;font-family:var(--font)}
+
+.cond-box{background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:12px}
+.cond-head{font-size:12px;font-weight:700;color:var(--text2);margin-bottom:10px;display:flex;justify-content:space-between}
+.cond-row{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+.cond-lbl{font-size:11px;color:var(--text2);width:74px;flex-shrink:0}
+.cond-toggles{display:flex;gap:4px;flex-wrap:wrap}
+.ctag{padding:3px 9px;border-radius:6px;font-size:11px;border:1px solid var(--border);background:transparent;color:var(--text3);cursor:pointer;font-family:var(--font);transition:all .12s;white-space:nowrap}
+.ctag.on{border-color:var(--accent);color:var(--accent);background:rgba(0,212,255,.08)}
+.ctag.on-warn{border-color:var(--amber);color:var(--amber);background:rgba(245,158,11,.08)}
+.ctag.on-bear{border-color:var(--green);color:var(--green);background:rgba(16,185,129,.08)}
+.cnum{width:46px;background:var(--bg2);border:1px solid var(--border);border-radius:5px;color:var(--text);font-family:var(--mono);font-size:11px;padding:2px 6px;outline:none;display:inline-block;text-align:center}
+
+.scan-toolbar{display:flex;gap:8px;margin-bottom:12px;align-items:center}
+.scan-btn-p{background:var(--accent);color:#000;border:none;border-radius:8px;padding:8px 18px;font-weight:700;font-size:13px;cursor:pointer;font-family:var(--font)}
+.scan-btn-p:disabled{background:var(--bg3);color:var(--text3);cursor:not-allowed}
+.scan-btn-s{background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer;font-family:var(--font)}
+.prog-wrap{flex:1}
+.prog-bar{height:4px;background:var(--border);border-radius:2px;overflow:hidden}
+.prog-fill{height:100%;background:var(--accent);border-radius:2px;transition:width .3s;width:0%}
+.prog-lbl{font-size:10px;color:var(--text3);margin-top:3px}
+.scan-results{display:flex;flex-direction:column;gap:8px}
+.sr-item{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px;cursor:pointer;transition:border-color .15s}
+.sr-item:hover{border-color:var(--accent)}
+.sr-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.sr-name{font-size:14px;font-weight:700;font-family:var(--mono)}
+.sr-price{font-size:13px;font-weight:700;font-family:var(--mono)}
+.sr-badges{display:flex;gap:4px;flex-wrap:wrap}
+.sr-score{font-size:10px;color:var(--text3);margin-top:5px}
+.sbar{display:flex;gap:2px;margin-top:3px;max-width:160px}
+.sseg{flex:1;height:3px;border-radius:1px;background:var(--border)}
+
+/* ─ Alerts ─ */
+.alert-list{display:flex;flex-direction:column;gap:8px;margin-bottom:14px}
+.alert-item{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:11px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.alert-left{flex:1}
+.alert-name{font-size:13px;font-weight:700;font-family:var(--mono)}
+.alert-cond{font-size:11px;color:var(--text2);margin-top:3px;line-height:1.5}
+.alert-meta{font-size:10px;color:var(--text3);margin-top:3px}
+.alert-actions{display:flex;align-items:center;gap:6px}
+.toggle-wrap{position:relative;width:38px;height:20px;flex-shrink:0}
+.toggle-wrap input{opacity:0;width:0;height:0;position:absolute}
+.toggle-track{position:absolute;inset:0;background:var(--border);border-radius:10px;cursor:pointer;transition:.2s}
+.toggle-track::before{content:'';position:absolute;height:14px;width:14px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.2s}
+input:checked+.toggle-track{background:var(--accent)}
+input:checked+.toggle-track::before{transform:translateX(18px)}
+.alert-del{color:var(--text3);cursor:pointer;font-size:16px;padding:4px;border-radius:4px}
+.alert-del:hover{color:var(--red)}
+.trigger-badge{font-size:9px;padding:2px 5px;border-radius:3px;background:rgba(239,68,68,.2);color:var(--red);font-weight:700;margin-left:4px}
+
+.ac-box{background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:14px}
+.ac-head{font-size:12px;font-weight:700;color:var(--text2);margin-bottom:12px}
+.ac-field{margin-bottom:10px}
+.ac-lbl{font-size:11px;color:var(--text2);margin-bottom:4px}
+.ac-input{width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:7px;padding:8px 10px;color:var(--text);font-family:var(--font);font-size:13px;outline:none}
+.ac-input:focus{border-color:var(--accent)}
+.ac-select{width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:7px;padding:8px 10px;color:var(--text);font-family:var(--font);font-size:13px;outline:none}
+.ac-row{display:flex;gap:8px}
+.ac-row .ac-field{flex:1}
+.ac-btn{width:100%;margin-top:4px;padding:10px;background:var(--accent);color:#000;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font)}
+
+/* ─ Alert triggered toast ─ */
+.toast{position:fixed;top:60px;left:50%;transform:translateX(-50%) translateY(-80px);background:var(--bg2);border:1px solid var(--amber);border-radius:10px;padding:10px 16px;font-size:13px;color:var(--text);z-index:999;transition:transform .3s;white-space:nowrap;box-shadow:0 4px 20px rgba(0,0,0,.4)}
+.toast.show{transform:translateX(-50%) translateY(0)}
+
+/* ─ Modal ─ */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:500;align-items:flex-end;justify-content:center}
+.modal-overlay.open{display:flex}
+.modal-card{background:var(--bg2);border:1px solid var(--border);border-radius:16px 16px 0 0;padding:18px 16px 32px;width:100%;max-width:520px;animation:slideUp .22s ease;max-height:85vh;overflow-y:auto}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.modal-handle{width:40px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 14px}
+.modal-title{font-size:16px;font-weight:700;color:var(--text);margin-bottom:6px}
+.modal-badges{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+.modal-body{font-size:13px;color:var(--text2);line-height:1.7;margin-bottom:12px}
+.modal-criteria{background:var(--bg3);border-radius:10px;padding:12px;margin-bottom:12px}
+.mc-head{font-size:11px;color:var(--text3);margin-bottom:8px}
+.mc-row{display:flex;align-items:center;gap:8px;margin-bottom:5px;font-size:12px}
+.mc-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.mc-dot.pass{background:var(--green)}.mc-dot.fail{background:var(--red)}.mc-dot.na{background:var(--text3)}
+.mc-text{color:var(--text2);flex:1}
+.mc-val{color:var(--text);font-family:var(--mono)}
+.modal-close{width:100%;padding:11px;background:var(--bg3);border:1px solid var(--border);border-radius:9px;color:var(--text);font-size:13px;font-weight:500;cursor:pointer;font-family:var(--font)}
+
+/* ─ Loading ─ */
+.loading{position:absolute;inset:0;background:var(--card);display:flex;align-items:center;justify-content:center;z-index:20;font-size:13px;color:var(--text2)}
+.spinner{width:18px;height:18px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;margin-right:8px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.empty{padding:28px;text-align:center;color:var(--text3);font-size:13px;line-height:1.9}
+.divider{height:1px;background:var(--border);margin:12px 0}
+
+/* ─ Notify tab ─ */
+.notify-step{display:flex;align-items:flex-start;gap:8px;font-size:12px;color:var(--text2)}
+.step-num{background:var(--accent2);color:#fff;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;margin-top:1px}
+.inline-code{background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:1px 6px;font-family:var(--mono);font-size:11px;color:var(--accent)}
+</style>
+</head>
+<body>
+
+<!-- Topbar -->
+<div class="topbar">
+  <div class="logo">台股分析<span class="logo-sub">TW Stock Pro</span><span class="v2-badge">v3</span></div>
+  <div style="font-size:10px;color:var(--text3)" id="lastUpdate">--</div>
+</div>
+
+<!-- Search -->
+<div class="search-wrap">
+  <input class="search-input" id="stockInput" placeholder="輸入代號或名稱（2330、台積電…）" maxlength="10">
+  <button class="search-btn" onclick="loadStock()">查詢</button>
+</div>
+
+<!-- Watchlist -->
+<div class="watchlist" id="wlRow"></div>
+
+<!-- Quote header -->
+<div class="quote-header" id="quoteHeader">
+  <div class="quote-name" id="qName"></div>
+  <div class="quote-main">
+    <div class="quote-price" id="qPrice">--</div>
+    <div class="quote-change" id="qChange">--</div>
+  </div>
+  <div class="quote-meta">
+    <div class="meta-item">開 <strong id="qOpen">--</strong></div>
+    <div class="meta-item">高 <strong id="qHigh">--</strong></div>
+    <div class="meta-item">低 <strong id="qLow">--</strong></div>
+    <div class="meta-item">量 <strong id="qVol">--</strong></div>
+  </div>
+  <div class="quote-score-wrap">
+    <div class="score-label">技術評分</div>
+    <div class="score-meter"><div class="score-fill" id="scoreFill" style="width:50%;background:var(--amber)"></div></div>
+    <div class="score-num" id="scoreNum">--</div>
+  </div>
+</div>
+
+<!-- Tabs -->
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('chart')">K 線圖表</div>
+  <div class="tab" onclick="switchTab('chips')">籌碼法人</div>
+  <div class="tab" onclick="switchTab('signals')">訊號偵測</div>
+  <div class="tab" onclick="switchTab('scanner')">批量掃描</div>
+  <div class="tab" onclick="switchTab('alerts')">警報設定</div>
+  <div class="tab" onclick="switchTab('notify')">🔔 Line通知</div>
+</div>
+
+<!-- ═══ TAB: chart ═══ -->
+<div id="tab-chart" class="tab-content active">
+  <div class="period-bar">
+    <button class="period-btn" onclick="setPeriod('5d')">5日</button>
+    <button class="period-btn active" onclick="setPeriod('3m')">3月</button>
+    <button class="period-btn" onclick="setPeriod('6m')">6月</button>
+    <button class="period-btn" onclick="setPeriod('1y')">1年</button>
+    <button class="period-btn" onclick="setPeriod('2y')">2年</button>
+  </div>
+  <div class="chart-section">
+    <div class="boll-legend">
+      <div class="boll-item"><div class="boll-line" style="background:#00d4ff"></div>20MA</div>
+      <div class="boll-item"><div class="boll-line" style="background:#f59e0b"></div>60MA</div>
+      <div class="boll-item"><div class="boll-line" style="background:rgba(124,58,237,.8)"></div>布林上/下軌</div>
+      <div class="boll-item"><div class="boll-line" style="background:rgba(124,58,237,.4);border-bottom:1px dashed"></div>布林中軌</div>
+    </div>
+    <div class="chart-wrap">
+      <div class="loading" id="chartLoading"><div class="spinner"></div>載入中...</div>
+      <div id="klineChart"></div>
+    </div>
+    <div class="indicator-panel">
+      <div class="ind-header">
+        <b style="color:var(--text2);font-size:11px">MACD</b>
+        <div class="ind-label"><div class="ind-dot" style="background:#00d4ff"></div><span id="lMacdDif">DIF --</span></div>
+        <div class="ind-label"><div class="ind-dot" style="background:#f59e0b"></div><span id="lMacdDea">DEA --</span></div>
+        <div class="ind-label"><div class="ind-dot" style="background:#ef4444"></div><span id="lMacdH">MACD --</span></div>
+      </div>
+      <div id="macdChart"></div>
+    </div>
+    <div class="indicator-panel">
+      <div class="ind-header">
+        <b style="color:var(--text2);font-size:11px">RSI</b>
+        <div class="ind-label"><div class="ind-dot" style="background:#00d4ff"></div><span id="lRsi6">RSI6 --</span></div>
+        <div class="ind-label"><div class="ind-dot" style="background:#f59e0b"></div><span id="lRsi14">RSI14 --</span></div>
+      </div>
+      <div id="rsiChart"></div>
+    </div>
+    <div class="indicator-panel">
+      <div class="ind-header">
+        <b style="color:var(--text2);font-size:11px">KD</b>
+        <div class="ind-label"><div class="ind-dot" style="background:#10b981"></div><span id="lK">K --</span></div>
+        <div class="ind-label"><div class="ind-dot" style="background:#ef4444"></div><span id="lD">D --</span></div>
+      </div>
+      <div id="kdChart"></div>
+    </div>
+    <div class="vp-section">
+      <div class="section-title">分價量表 Volume Profile</div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:8px">紅色 = 主力套牢密集區 · 藍色 = 一般成交區 · ◄ 目前價</div>
+      <canvas id="vpCanvas"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TAB: chips ═══ -->
+<div id="tab-chips" class="tab-content">
+  <div class="section">
+    <div class="section-title">三大法人（近5日累計）</div>
+    <div class="chips-grid">
+      <div class="chip-card"><div class="chip-lbl">外資</div><div class="chip-val" id="cFii">--</div><div class="chip-sub" id="cFiiSub">張</div></div>
+      <div class="chip-card"><div class="chip-lbl">投信</div><div class="chip-val" id="cIt">--</div><div class="chip-sub" id="cItSub">張</div></div>
+      <div class="chip-card"><div class="chip-lbl">自營商</div><div class="chip-val" id="cDealer">--</div><div class="chip-sub" id="cDealerSub">張</div></div>
+      <div class="chip-card"><div class="chip-lbl">合計</div><div class="chip-val" id="cTotal">--</div><div class="chip-sub">張（5日）</div></div>
+    </div>
+    <div class="section-title">籌碼動向</div>
+    <div class="chips-grid">
+      <div class="chip-card"><div class="chip-lbl">融資餘額</div><div class="chip-val" id="cMargin" style="color:var(--amber)">--</div><div class="chip-sub" id="cMarginSub">張</div></div>
+      <div class="chip-card"><div class="chip-lbl">融券餘額</div><div class="chip-val" id="cShort" style="color:var(--accent2)">--</div><div class="chip-sub" id="cShortSub">張</div></div>
+      <div class="chip-card"><div class="chip-lbl">董監持股</div><div class="chip-val" id="cBoard" style="color:var(--text)">--</div><div class="chip-sub">鎖定籌碼</div></div>
+      <div class="chip-card"><div class="chip-lbl">券資比</div><div class="chip-val" id="cSnR" style="color:var(--text)">--</div><div class="chip-sub">空頭成本指標</div></div>
+    </div>
+    <div class="section-title">盤後大單（前10筆）</div>
+    <table class="orders-tbl">
+      <thead><tr><th>時間</th><th>方向</th><th>價格</th><th>張數</th><th>金額(萬)</th></tr></thead>
+      <tbody id="bigOrdersBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ═══ TAB: signals ═══ -->
+<div id="tab-signals" class="tab-content">
+  <div class="section">
+    <div class="section-title">技術訊號偵測</div>
+    <div class="signal-list" id="signalList"><div class="empty">請先查詢股票</div></div>
+  </div>
+  <div class="section">
+    <div class="section-title">訊號歷史紀錄</div>
+    <div class="history-list" id="historyList"><div class="empty" style="padding:10px 0">暫無紀錄</div></div>
+  </div>
+</div>
+
+<!-- ═══ TAB: scanner ═══ -->
+<div id="tab-scanner" class="tab-content">
+  <div class="section">
+    <div class="scan-wl-box">
+      <div class="scan-wl-title">掃描清單（最多30檔）</div>
+      <div class="scan-tags" id="scanTags"></div>
+      <div class="scan-add-row">
+        <input class="scan-add-input" id="scanAddInput" placeholder="輸入代號加入（如 2330）" maxlength="6">
+        <button class="scan-add-btn" onclick="scanWlAdd()">加入</button>
+      </div>
+    </div>
+
+    <div class="cond-box">
+      <div class="cond-head">
+        <span>篩選條件</span>
+        <span style="font-size:10px;color:var(--text3);font-weight:400">符合任一條件即列出</span>
+      </div>
+      <div class="cond-row">
+        <div class="cond-lbl">量能</div>
+        <div class="cond-toggles">
+          <button class="ctag on" id="c-vol-surge" onclick="toggleCond(this)">爆量&gt;<input class="cnum" id="c-vol-ratio" value="2.0" onclick="e=>e.stopPropagation()">倍</button>
+          <button class="ctag" id="c-vol-shrink" onclick="toggleCond(this)">量縮&lt;0.4倍</button>
+        </div>
+      </div>
+      <div class="cond-row">
+        <div class="cond-lbl">突破</div>
+        <div class="cond-toggles">
+          <button class="ctag on" id="c-break-high" onclick="toggleCond(this)">突破前高</button>
+          <button class="ctag on" id="c-break-ma20" onclick="toggleCond(this)">穿越20MA</button>
+          <button class="ctag" id="c-break-boll" onclick="toggleCond(this)">突破布林上軌</button>
+        </div>
+      </div>
+      <div class="cond-row">
+        <div class="cond-lbl">指標</div>
+        <div class="cond-toggles">
+          <button class="ctag on" id="c-kd-gold" onclick="toggleCond(this)">KD黃金叉</button>
+          <button class="ctag" id="c-macd-gold" onclick="toggleCond(this)">MACD金叉</button>
+          <button class="ctag" id="c-kd-dead" onclick="toggleCond(this,'on-warn')">KD死叉</button>
+        </div>
+      </div>
+      <div class="cond-row">
+        <div class="cond-lbl">RSI</div>
+        <div class="cond-toggles">
+          <button class="ctag" id="c-rsi-ob" onclick="toggleCond(this,'on-warn')">RSI超買&gt;<input class="cnum" id="c-rsi-ob-v" value="80" onclick="e=>e.stopPropagation()"></button>
+          <button class="ctag on" id="c-rsi-os" onclick="toggleCond(this)">RSI超賣&lt;<input class="cnum" id="c-rsi-os-v" value="20" onclick="e=>e.stopPropagation()"></button>
+        </div>
+      </div>
+      <div class="cond-row">
+        <div class="cond-lbl">型態</div>
+        <div class="cond-toggles">
+          <button class="ctag on" id="c-triangle" onclick="toggleCond(this)">收斂三角</button>
+          <button class="ctag on" id="c-wbottom" onclick="toggleCond(this)">W底</button>
+          <button class="ctag" id="c-headsh" onclick="toggleCond(this,'on-bear')">頭肩頂</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="scan-toolbar">
+      <button class="scan-btn-p" id="scanBtn" onclick="startScan()">開始掃描</button>
+      <button class="scan-btn-s" onclick="clearScan()">清除</button>
+      <div class="prog-wrap" id="progWrap" style="display:none">
+        <div class="prog-bar"><div class="prog-fill" id="progFill"></div></div>
+        <div class="prog-lbl" id="progLbl">準備中...</div>
+      </div>
+    </div>
+    <div class="scan-results" id="scanResults"><div class="empty">設定條件後點擊「開始掃描」</div></div>
+  </div>
+</div>
+
+<!-- ═══ TAB: alerts ═══ -->
+<div id="tab-alerts" class="tab-content">
+  <div class="section">
+    <div class="section-title">警報清單 <span id="alertCountBadge" style="font-size:11px;color:var(--text3);font-weight:400"></span></div>
+    <div class="alert-list" id="alertList"><div class="empty">尚未設定任何警報</div></div>
+    <div class="divider"></div>
+    <div class="section-title">新增警報</div>
+    <div class="ac-box">
+      <div class="ac-field">
+        <div class="ac-lbl">股票代號</div>
+        <input class="ac-input" id="ac-stock" placeholder="如：2330">
+      </div>
+      <div class="ac-row">
+        <div class="ac-field">
+          <div class="ac-lbl">訊號類型</div>
+          <select class="ac-select" id="ac-type">
+            <option value="vol_surge">爆量（成交量異常放大）</option>
+            <option value="vol_shrink">量縮（成交量萎縮）</option>
+            <option value="break_high">突破近60日前高</option>
+            <option value="break_ma20">向上穿越 20MA</option>
+            <option value="break_ma20_dn">跌破 20MA</option>
+            <option value="break_boll_up">突破布林上軌</option>
+            <option value="kd_golden">KD 低檔黃金交叉</option>
+            <option value="kd_dead">KD 高檔死亡交叉</option>
+            <option value="macd_golden">MACD 低檔金叉</option>
+            <option value="rsi_os">RSI 進入超賣區</option>
+            <option value="rsi_ob">RSI 進入超買區</option>
+            <option value="triangle">收斂三角型態初篩</option>
+            <option value="wbottom">W 底型態初篩</option>
+            <option value="head_shoulder">頭肩頂型態初篩</option>
+            <option value="price_above">價格高於設定值</option>
+            <option value="price_below">價格低於設定值</option>
+          </select>
+        </div>
+        <div class="ac-field" style="flex:0 0 86px">
+          <div class="ac-lbl">參數（選填）</div>
+          <input class="ac-input" id="ac-param" placeholder="數值">
+        </div>
+      </div>
+      <div class="ac-field">
+        <div class="ac-lbl">備註</div>
+        <input class="ac-input" id="ac-note" placeholder="自訂說明（選填）">
+      </div>
+      <button class="ac-btn" onclick="createAlert()">建立警報</button>
+    </div>
+    <div class="divider"></div>
+    <div class="section-title">近期觸發紀錄</div>
+    <div class="history-list" id="alertHistList"><div class="empty" style="padding:8px 0">尚無觸發紀錄</div></div>
+  </div>
+</div>
+
+<!-- ═══ TAB: notify (Line 通知) ═══ -->
+<div id="tab-notify" class="tab-content">
+  <div class="section">
+
+    <!-- Worker 連線設定 -->
+    <div class="section-title">Cloudflare Worker 連線設定</div>
+    <div class="ac-box" style="margin-bottom:12px">
+      <div class="ac-head" style="display:flex;align-items:center;gap:8px">
+        <div id="workerStatusDot" style="width:8px;height:8px;border-radius:50%;background:var(--border);flex-shrink:0"></div>
+        <span id="workerStatusText" style="font-size:12px;color:var(--text2)">未連線</span>
+      </div>
+      <div class="ac-field" style="margin-top:10px">
+        <div class="ac-lbl">Worker URL</div>
+        <input class="ac-input" id="workerUrl" placeholder="https://tw-stock-analyzer.你的帳號.workers.dev" style="font-size:12px;font-family:var(--mono)">
+      </div>
+      <div class="ac-field">
+        <div class="ac-lbl">API Key（選填）</div>
+        <input class="ac-input" id="workerApiKey" type="password" placeholder="若 Worker 有設定 API_KEY 才需填入">
+      </div>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button class="ac-btn" style="flex:1" onclick="saveWorkerConfig()">儲存設定</button>
+        <button class="ac-btn" style="flex:0 0 80px;background:var(--bg3);color:var(--text);border:1px solid var(--border)" onclick="testWorkerConn()">測試連線</button>
+      </div>
+    </div>
+
+    <!-- Line Token 說明 -->
+    <div class="section-title">Line 通知設定</div>
+    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:12px">
+      <div style="font-size:12px;color:var(--text2);line-height:1.8">
+        <div style="font-weight:700;color:var(--text);margin-bottom:8px">📋 設定步驟</div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <div class="notify-step"><span class="step-num">1</span> 前往 <a href="https://developers.line.biz" target="_blank" style="color:var(--accent)">Line Developers</a> 建立 Messaging API Channel</div>
+          <div class="notify-step"><span class="step-num">2</span> 取得 <b>Channel Access Token</b>（長期），設定到 Worker 環境變數 <code class="inline-code">LINE_CHANNEL_TOKEN</code></div>
+          <div class="notify-step"><span class="step-num">3</span> 用 Line 掃描 QR Code 加入你的 Bot 為好友</div>
+          <div class="notify-step"><span class="step-num">4</span> 取得你的 <b>User ID</b>（在 Webhook 事件或 Line Developers 頁面），設定到 <code class="inline-code">LINE_USER_ID</code></div>
+          <div class="notify-step"><span class="step-num">5</span> 在下方點擊「傳送測試訊息」確認通知正常</div>
+        </div>
+      </div>
+      <button class="ac-btn" style="margin-top:12px;background:var(--green);color:#fff" onclick="sendTestLine()">📱 傳送 Line 測試訊息</button>
+    </div>
+
+    <!-- 通知排程設定 -->
+    <div class="section-title">排程設定</div>
+    <div class="ac-box" style="margin-bottom:12px">
+      <div class="ac-head">Cron 自動掃描時間點</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.7">
+        Worker 排程已設定為台股交易時段自動觸發：<br>
+        <span style="font-family:var(--mono);color:var(--accent);font-size:11px">09:30 · 11:00 · 13:00 · 14:10</span>（台灣時間，週一至週五）
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="ac-btn" style="flex:1;min-width:120px" onclick="triggerManualScan()">⚡ 立即掃描一次</button>
+        <button class="ac-btn" style="flex:1;min-width:120px;background:var(--bg3);color:var(--text);border:1px solid var(--border)" onclick="loadLastScanLog()">📋 查看上次結果</button>
+      </div>
+      <div id="scanLogBox" style="display:none;margin-top:12px;background:var(--bg2);border-radius:8px;padding:10px;font-size:12px;font-family:var(--mono);color:var(--text2)"></div>
+    </div>
+
+    <!-- 警報同步到 Worker -->
+    <div class="section-title">警報同步</div>
+    <div class="ac-box" style="margin-bottom:12px">
+      <div class="ac-head">將警報設定同步至 Worker</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.7">
+        在「警報設定」頁籤建立的警報，需同步至 Worker 才能讓排程通知生效。
+      </div>
+      <div id="syncStatus" style="font-size:11px;color:var(--text3);margin-bottom:8px">尚未同步</div>
+      <button class="ac-btn" onclick="syncAlertsToWorker()">🔄 立即同步警報至 Worker</button>
+    </div>
+
+    <!-- 通知歷史 -->
+    <div class="section-title">Worker 觸發歷史</div>
+    <div id="workerHistList" style="display:flex;flex-direction:column;gap:6px">
+      <div class="empty" style="padding:16px 0">點擊「查看上次結果」載入</div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Pattern modal -->
+<div class="modal-overlay" id="patternModal" onclick="if(event.target===this)closeModal()">
+  <div class="modal-card">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="mTitle"></div>
+    <div class="modal-badges" id="mBadges"></div>
+    <div class="modal-body" id="mBody"></div>
+    <div class="modal-criteria" id="mCriteria"></div>
+    <button class="modal-close" onclick="closeModal()">關閉</button>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════════
+let currentStock='2330', currentPeriod='3m', rawData=[];
+let kChart, macdChart, rsiChart, kdChart;
+let kSeries, volSeries, ma20S, ma60S, bollUpS, bollMidS, bollLowS;
+let macdHistS, macdDifS, macdDeaS, rsi6S, rsi14S, kdKS, kdDS;
+let signalHistory = JSON.parse(localStorage.getItem('sigHist')||'[]');
+let alerts = JSON.parse(localStorage.getItem('alertDefs')||'[]');
+let alertHistory = JSON.parse(localStorage.getItem('alertHist')||'[]');
+let scanList = JSON.parse(localStorage.getItem('scanList')||'["2330","2317","2454","3661","2412","2308","2382","2303","2609","2615"]');
+let scanning=false, scanCache={};
+let _curSigs=[];
+
+const NAMES={'2330':'台積電','2317':'鴻海','2454':'聯發科','3661':'世芯-KY','2412':'中華電','6505':'台塑化','2308':'台達電','2382':'廣達','2303':'聯電','2357':'華碩','2379':'瑞昱','2395':'研華','2881':'富邦金','2882':'國泰金','2886':'兆豐金','2891':'中信金','3008':'大立光','2609':'陽明','2615':'萬海','2603':'長榮'};
+const ALERT_LABELS={vol_surge:'爆量',vol_shrink:'量縮',break_high:'突破前高',break_ma20:'穿越20MA',break_ma20_dn:'跌破20MA',break_boll_up:'突破布林上軌',kd_golden:'KD黃金叉',kd_dead:'KD死叉',macd_golden:'MACD金叉',rsi_os:'RSI超賣',rsi_ob:'RSI超買',triangle:'收斂三角',wbottom:'W底',head_shoulder:'頭肩頂',price_above:'價格觸及',price_below:'價格觸及'};
+
+// ═══════════════════════════════════════════════════════════════
+// CHART INIT
+// ═══════════════════════════════════════════════════════════════
+function initCharts(){
+  const o={layout:{background:{color:'#131c2e'},textColor:'#94a3b8'},grid:{vertLines:{color:'#1a2235'},horzLines:{color:'#1a2235'}},crosshair:{mode:1},rightPriceScale:{borderColor:'#1e2d45'},timeScale:{borderColor:'#1e2d45',timeVisible:true},handleScroll:true,handleScale:true};
+  const $=id=>document.getElementById(id);
+
+  kChart=LightweightCharts.createChart($('klineChart'),{...o,height:300});
+  kSeries=kChart.addCandlestickSeries({upColor:'#ef4444',downColor:'#10b981',borderUpColor:'#ef4444',borderDownColor:'#10b981',wickUpColor:'#ef4444',wickDownColor:'#10b981'});
+  volSeries=kChart.addHistogramSeries({priceFormat:{type:'volume'},priceScaleId:'vol',scaleMargins:{top:.82,bottom:0}});
+  ma20S=kChart.addLineSeries({color:'#00d4ff',lineWidth:1.5,priceLineVisible:false,lastValueVisible:false});
+  ma60S=kChart.addLineSeries({color:'#f59e0b',lineWidth:1.5,priceLineVisible:false,lastValueVisible:false});
+  bollUpS=kChart.addLineSeries({color:'rgba(124,58,237,.7)',lineWidth:1,priceLineVisible:false,lastValueVisible:false});
+  bollMidS=kChart.addLineSeries({color:'rgba(124,58,237,.35)',lineWidth:1,lineStyle:2,priceLineVisible:false,lastValueVisible:false});
+  bollLowS=kChart.addLineSeries({color:'rgba(124,58,237,.7)',lineWidth:1,priceLineVisible:false,lastValueVisible:false});
+
+  macdChart=LightweightCharts.createChart($('macdChart'),{...o,height:100});
+  macdHistS=macdChart.addHistogramSeries({priceLineVisible:false});
+  macdDifS=macdChart.addLineSeries({color:'#00d4ff',lineWidth:1.5,priceLineVisible:false,lastValueVisible:false});
+  macdDeaS=macdChart.addLineSeries({color:'#f59e0b',lineWidth:1.5,priceLineVisible:false,lastValueVisible:false});
+
+  rsiChart=LightweightCharts.createChart($('rsiChart'),{...o,height:100});
+  rsi6S=rsiChart.addLineSeries({color:'#00d4ff',lineWidth:1.5,priceLineVisible:false,lastValueVisible:false});
+  rsi14S=rsiChart.addLineSeries({color:'#f59e0b',lineWidth:1.5,priceLineVisible:false,lastValueVisible:false});
+
+  kdChart=LightweightCharts.createChart($('kdChart'),{...o,height:100});
+  kdKS=kdChart.addLineSeries({color:'#10b981',lineWidth:1.5,priceLineVisible:false,lastValueVisible:false});
+  kdDS=kdChart.addLineSeries({color:'#ef4444',lineWidth:1.5,priceLineVisible:false,lastValueVisible:false});
+
+  [macdChart,rsiChart,kdChart].forEach(c=>{
+    kChart.timeScale().subscribeVisibleLogicalRangeChange(r=>{if(r)c.timeScale().setVisibleLogicalRange(r);});
+    c.timeScale().subscribeVisibleLogicalRangeChange(r=>{if(r)kChart.timeScale().setVisibleLogicalRange(r);});
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// INDICATOR MATH
+// ═══════════════════════════════════════════════════════════════
+function sma(data,n){return data.map((_,i)=>i<n-1?null:data.slice(i-n+1,i+1).reduce((s,d)=>s+d.close,0)/n);}
+function ema(arr,n){const k=2/(n+1),r=[];arr.forEach((v,i)=>r.push(i===0?v:v*k+r[i-1]*(1-k)));return r;}
+function boll(data,n=20,m=2){const s=sma(data,n);return data.map((_,i)=>{if(s[i]===null)return{u:null,mid:null,l:null};const sl=data.slice(i-n+1,i+1),std=Math.sqrt(sl.reduce((a,d)=>a+Math.pow(d.close-s[i],2),0)/n);return{u:s[i]+m*std,mid:s[i],l:s[i]-m*std};});}
+function macd(data,f=12,s=26,sig=9){const cls=data.map(d=>d.close),ef=ema(cls,f),es=ema(cls,s),dif=ef.map((v,i)=>v-es[i]),dea=ema(dif,sig),hist=dif.map((v,i)=>(v-dea[i])*2);return{dif,dea,hist};}
+function rsi(data,n){const cls=data.map(d=>d.close);return cls.map((c,i)=>{if(i<n)return null;const ch=cls.slice(i-n,i).map((v,j)=>j===0?0:cls[i-n+j]-cls[i-n+j-1]);const g=ch.filter(x=>x>0).reduce((a,b)=>a+b,0)/n,l=Math.abs(ch.filter(x=>x<0).reduce((a,b)=>a+b,0))/n;return l===0?100:100-100/(1+g/l);});}
+function kd(data,n=9,m=3){let pk=50,pd=50;return data.map((d,i)=>{if(i<n-1)return{k:null,d:null};const sl=data.slice(i-n+1,i+1),hi=Math.max(...sl.map(x=>x.high)),lo=Math.min(...sl.map(x=>x.low)),rsv=hi===lo?50:(d.close-lo)/(hi-lo)*100,k=pk*(m-1)/m+rsv/m,dv=pd*(m-1)/m+k/m;pk=k;pd=dv;return{k,d:dv};});}
+
+// ═══════════════════════════════════════════════════════════════
+// ★★★ SIGNAL ENGINE v2 ★★★
+// ═══════════════════════════════════════════════════════════════
+function detectSignals(data){
+  if(!data||data.length<30)return[];
+  const sigs=[], N=data.length, last=data[N-1], prev=data[N-2];
+  const vols=data.map(d=>d.volume);
+  const s20=sma(data,20), s60=sma(data,60), bollD=boll(data), {dif,dea,hist}=macd(data), r6=rsi(data,6), r14=rsi(data,14), kdD=kd(data);
+  const lS20=s20[N-1], pS20=s20[N-2], lS60=s60[N-1];
+  const lBoll=bollD[N-1], pBoll=bollD[N-2];
+  const lDif=dif[N-1], pDif=dif[N-2], lDea=dea[N-1], pDea=dea[N-2], lHist=hist[N-1];
+  const lR6=r6[N-1], lR14=r14[N-1], pR14=r14[N-2];
+  const lKD=kdD[N-1], pKD=kdD[N-2];
+  const vol20=vols.slice(-21,-1).reduce((a,b)=>a+b,0)/20;
+  const vRatio=last.volume/vol20;
+
+  // ── 量能 ────────────────────────────────────────────────────
+  if(vRatio>2.0){
+    sigs.push({id:'vol_surge',type:'bullish',icon:'🔥',title:'爆量訊號',
+      desc:`今日量能為20MA的 ${vRatio.toFixed(1)} 倍。${last.close>prev.close?'配合上漲，可能有主力進場或利多發酵，強烈關注。':'但收黑，需警惕出貨訊號。'}`,
+      badge:'bull',badgeText:'爆量',strength:Math.min(5,Math.floor(vRatio)),max:5,
+      criteria:[
+        {pass:true,text:'今日成交量',val:`${(last.volume/1000).toFixed(0)}K 張`},
+        {pass:true,text:'20日均量',val:`${(vol20/1000).toFixed(0)}K 張`},
+        {pass:true,text:'量比',val:`${vRatio.toFixed(2)} 倍`},
+        {pass:last.close>prev.close,text:'量價配合',val:last.close>prev.close?'量增價漲':'量增價跌（注意）'},
+      ]});
+  } else if(vRatio<0.4){
+    sigs.push({id:'vol_shrink',type:'neutral',icon:'💤',title:'量縮觀察',
+      desc:`今日量能僅為20MA的 ${(vRatio*100).toFixed(0)}%，市場極度觀望。若前波趨勢向上，量縮回測可能是良機；若長期下跌中量縮，需更謹慎。`,
+      badge:'warn',badgeText:'量縮',strength:2,max:5,
+      criteria:[
+        {pass:false,text:'量比',val:`${vRatio.toFixed(2)} 倍（低於0.4）`},
+        {pass:null,text:'操作意涵',val:'觀望，等待量能回升'},
+      ]});
+  }
+
+  // ── 突破 ────────────────────────────────────────────────────
+  const high60=Math.max(...data.slice(-61,-1).map(d=>d.high));
+  if(last.close>high60&&prev.close<=high60){
+    sigs.push({id:'break_high',type:'bullish',icon:'🚀',title:'突破60日前高',
+      desc:`收盤 ${last.close} 突破近60日高點 ${high60.toFixed(1)}，若量能同步放大（當前量比 ${vRatio.toFixed(1)}x），突破有效性更強。`,
+      badge:'bull',badgeText:'突破前高',strength:4,max:5,
+      criteria:[
+        {pass:true,text:'前60日最高',val:high60.toFixed(1)},
+        {pass:true,text:'突破收盤價',val:last.close.toFixed(1)},
+        {pass:vRatio>1.5,text:'量能確認',val:`${vRatio.toFixed(1)}x ${vRatio>1.5?'充足':'不足'}`},
+        {pass:null,text:'後續觀察',val:'次日縮量不跌守視為有效'},
+      ]});
+  }
+
+  // 突破布林上軌
+  if(lBoll.u&&last.close>lBoll.u&&prev.close<=pBoll.u){
+    sigs.push({id:'break_boll_up',type:'bullish',icon:'📈',title:'突破布林通道上軌',
+      desc:`股價 ${last.close} 穿越布林上軌 ${lBoll.u.toFixed(1)}，顯示強勢突破。短期可能延續上漲但注意RSI是否超買（RSI14=${lR14?lR14.toFixed(0):'--'}）。`,
+      badge:'bull',badgeText:'布林突破',strength:3,max:5,
+      criteria:[
+        {pass:true,text:'布林上軌',val:lBoll.u.toFixed(1)},
+        {pass:true,text:'收盤突破',val:last.close.toFixed(1)},
+        {pass:lR14&&lR14<75,text:'RSI未超買',val:lR14?lR14.toFixed(0):'--'},
+      ]});
+  }
+
+  // 20MA 多空穿越
+  if(lS20&&pS20){
+    if(prev.close<pS20&&last.close>lS20){
+      sigs.push({id:'break_ma20',type:'bullish',icon:'📊',title:'向上穿越 20MA',
+        desc:`股價由 ${prev.close} 向上穿越20日均線 ${lS20.toFixed(1)}，短線轉多訊號。確認條件：${lS60?(lS20>lS60?'均線多頭排列，訊號更強':'注意多空交錯區'):'--'}`,
+        badge:'bull',badgeText:'均線突破',strength:3,max:5,
+        criteria:[
+          {pass:true,text:'20MA位置',val:lS20.toFixed(1)},
+          {pass:true,text:'突破方向',val:'由下往上'},
+          {pass:lS60?lS20>lS60:null,text:'60MA多空',val:lS60?(lS20>lS60?'多頭排列':'需注意'):'資料不足'},
+          {pass:vRatio>1.2,text:'量能支撐',val:`${vRatio.toFixed(1)}x`},
+        ]});
+    } else if(prev.close>pS20&&last.close<lS20){
+      sigs.push({id:'break_ma20_dn',type:'bearish',icon:'📉',title:'跌破 20MA',
+        desc:`股價跌破20日均線 ${lS20.toFixed(1)}，短線轉弱。若同時跌破60MA (${lS60?lS60.toFixed(1):'--'})，空頭意味更濃。`,
+        badge:'bear',badgeText:'跌破均線',strength:3,max:5,
+        criteria:[
+          {pass:false,text:'20MA支撐',val:'已跌破'},
+          {pass:lS60?last.close>lS60:null,text:'60MA支撐',val:lS60?(last.close>lS60?'守住':'跌破'):'--'},
+        ]});
+    }
+  }
+
+  // ── RSI ────────────────────────────────────────────────────
+  if(lR14&&lR14>80){
+    sigs.push({id:'rsi_ob',type:'bearish',icon:'⚠️',title:'RSI 超買（高檔警示）',
+      desc:`RSI14 = ${lR14.toFixed(1)}，進入超買區。若開始回落至 70 以下，可能出現短線拉回。RSI6 = ${lR6?lR6.toFixed(1):'--'}（更敏感指標）。`,
+      badge:'warn',badgeText:'超買警示',strength:3,max:5,
+      criteria:[
+        {pass:false,text:'RSI14',val:`${lR14.toFixed(1)} > 80`},
+        {pass:lR6?lR6<lR14:null,text:'RSI6 回落',val:lR6?lR6.toFixed(1):'--'},
+      ]});
+  } else if(lR14&&lR14<20){
+    sigs.push({id:'rsi_os',type:'bullish',icon:'💎',title:'RSI 超賣（底部機會）',
+      desc:`RSI14 = ${lR14.toFixed(1)}，深入超賣區。技術面超賣通常預示反彈機會，但需配合成交量放大確認止跌。RSI6 = ${lR6?lR6.toFixed(1):'--'}。`,
+      badge:'bull',badgeText:'超賣訊號',strength:4,max:5,
+      criteria:[
+        {pass:true,text:'RSI14',val:`${lR14.toFixed(1)} < 20`},
+        {pass:pR14?pR14<lR14:null,text:'RSI底背離',val:pR14?(pR14<lR14?'回升中':'持續下跌'):'--'},
+        {pass:vRatio>1.0,text:'量能配合',val:`${vRatio.toFixed(1)}x`},
+      ]});
+  }
+
+  // ── KD ─────────────────────────────────────────────────────
+  if(lKD.k&&pKD.k){
+    if(pKD.k<pKD.d&&lKD.k>lKD.d&&lKD.k<50){
+      const strength=lKD.k<30?5:lKD.k<40?4:3;
+      sigs.push({id:'kd_golden',type:'bullish',icon:'✨',title:`KD ${lKD.k<30?'低檔':'中低檔'}黃金交叉`,
+        desc:`K(${lKD.k.toFixed(1)}) 穿越 D(${lKD.d.toFixed(1)})，位於${lKD.k<30?'超賣低檔（<30），買進訊號強':lKD.k<40?'偏低檔，訊號中強':'中性位置'}。建議等待次日確認。`,
+        badge:'bull',badgeText:'KD黃金叉',strength,max:5,
+        criteria:[
+          {pass:true,text:'K值',val:lKD.k.toFixed(1)},
+          {pass:true,text:'D值',val:lKD.d.toFixed(1)},
+          {pass:lKD.k<30,text:'低檔(<30)',val:lKD.k<30?'是':'否（中性偏低）'},
+          {pass:vRatio>1.0,text:'量能',val:`${vRatio.toFixed(1)}x`},
+        ]});
+    } else if(pKD.k>pKD.d&&lKD.k<lKD.d&&lKD.k>50){
+      const strength=lKD.k>80?5:lKD.k>70?4:3;
+      sigs.push({id:'kd_dead',type:'bearish',icon:'⚡',title:`KD ${lKD.k>70?'高檔':'中高檔'}死亡交叉`,
+        desc:`K(${lKD.k.toFixed(1)}) 跌破 D(${lKD.d.toFixed(1)})，位於${lKD.k>80?'超買高檔（>80），空頭訊號強':lKD.k>70?'偏高檔':'中性位置'}，需留意風險。`,
+        badge:'warn',badgeText:'KD死叉',strength,max:5,
+        criteria:[
+          {pass:false,text:'K值',val:lKD.k.toFixed(1)},
+          {pass:false,text:'D值',val:lKD.d.toFixed(1)},
+          {pass:lKD.k>80,text:'高檔(>80)',val:lKD.k>80?'是':'否（中性偏高）'},
+        ]});
+    }
+  }
+
+  // ── MACD ────────────────────────────────────────────────────
+  if(pDif<pDea&&lDif>lDea){
+    const belowZero=lDif<0;
+    sigs.push({id:'macd_golden',type:'bullish',icon:'📊',title:`MACD ${belowZero?'低檔（零軸下方）':'零軸上方'} 金叉`,
+      desc:`DIF(${lDif.toFixed(2)}) 穿越 DEA(${lDea.toFixed(2)})。${belowZero?'位於零軸下方，底部翻多訊號，通常為中期買點。':'位於零軸上方，多頭延續訊號。'}柱狀體轉正 ${lHist>0?'✓':'✗'}。`,
+      badge:'bull',badgeText:'MACD金叉',strength:belowZero?5:3,max:5,
+      criteria:[
+        {pass:true,text:'DIF穿越DEA',val:`${lDif.toFixed(2)} > ${lDea.toFixed(2)}`},
+        {pass:belowZero,text:'零軸下方',val:belowZero?'是（底背離）':'否（延續多頭）'},
+        {pass:lHist>0,text:'柱狀體為正',val:lHist.toFixed(2)},
+      ]});
+  } else if(pDif>pDea&&lDif<lDea){
+    sigs.push({id:'macd_dead',type:'bearish',icon:'📉',title:`MACD 死叉`,
+      desc:`DIF(${lDif.toFixed(2)}) 跌破 DEA(${lDea.toFixed(2)})，MACD翻黑。${lDif>0?'目前仍在零軸上方，需觀察是否跌破。':'已在零軸下方，空頭訊號明顯。'}`,
+      badge:'bear',badgeText:'MACD死叉',strength:lDif<0?4:2,max:5,
+      criteria:[
+        {pass:false,text:'DIF',val:lDif.toFixed(2)},
+        {pass:false,text:'DEA',val:lDea.toFixed(2)},
+        {pass:lDif>0,text:'零軸上方',val:lDif>0?'是（較輕微）':'否（較嚴重）'},
+      ]});
+  }
+
+  // ── 收斂三角 ────────────────────────────────────────────────
+  if(data.length>=20){
+    const seg=data.slice(-20);
+    const segH=seg.map(d=>d.high), segL=seg.map(d=>d.low);
+    // 線性回歸斜率
+    const linReg=arr=>{const n=arr.length,sx=n*(n-1)/2,sxx=n*(n-1)*(2*n-1)/6,sy=arr.reduce((a,b)=>a+b,0),sxy=arr.reduce((s,v,i)=>s+i*v,0);return(n*sxy-sx*sy)/(n*sxx-sx*sx);};
+    const highSlope=linReg(segH), lowSlope=linReg(segL);
+    const priceRange=last.close*0.06;
+    const hRange=Math.max(...segH)-Math.min(...segH), lRange=Math.max(...segL)-Math.min(...segL);
+    const converging=highSlope<0&&lowSlope>0;
+    const tight=hRange<priceRange&&lRange<priceRange;
+    if(converging||tight){
+      sigs.push({id:'triangle',type:'neutral',icon:'🔺',title:'收斂三角整理型態',
+        desc:`近20根K線高點${converging?'下降、低點上升':'收斂'}，型態呈對稱三角收斂。等待方向選擇突破，上方壓力約 ${Math.max(...segH).toFixed(1)}，下方支撐約 ${Math.min(...segL).toFixed(1)}。突破方向通常延續前勢。`,
+        badge:'warn',badgeText:'型態初篩',strength:3,max:5,
+        criteria:[
+          {pass:converging,text:'高點下降',val:converging?`斜率 ${highSlope.toFixed(3)}`:'否'},
+          {pass:converging,text:'低點上升',val:converging?`斜率 ${lowSlope.toFixed(3)}`:'否'},
+          {pass:tight,text:'波動收斂',val:tight?`高低幅度 ${((hRange/last.close)*100).toFixed(1)}%`:'否'},
+          {pass:null,text:'注意',val:'程式初篩，需人工確認'},
+        ]});
+    }
+  }
+
+  // ── W 底 ────────────────────────────────────────────────────
+  if(data.length>=40){
+    const seg=data.slice(-40);
+    let low1Idx=-1, low1Val=Infinity, low2Idx=-1, low2Val=Infinity, neckVal=0;
+    for(let i=2;i<20;i++){if(seg[i].low<seg[i-1].low&&seg[i].low<seg[i+1].low&&seg[i].low<low1Val){low1Val=seg[i].low;low1Idx=i;}}
+    if(low1Idx>0){
+      for(let i=low1Idx+5;i<seg.length-2;i++){
+        neckVal=Math.max(neckVal,...seg.slice(low1Idx,i).map(d=>d.high));
+        if(seg[i].low<seg[i-1].low&&seg[i].low<seg[i+1].low&&Math.abs(seg[i].low-low1Val)/low1Val<0.05&&seg[i].low<low2Val){low2Val=seg[i].low;low2Idx=i;}
+      }
+    }
+    if(low1Idx>0&&low2Idx>low1Idx&&neckVal>Math.max(low1Val,low2Val)){
+      const neckBreak=last.close>neckVal;
+      const target=(neckVal+(neckVal-Math.min(low1Val,low2Val))).toFixed(1);
+      sigs.push({id:'wbottom',type:'bullish',icon:'〽️',title:`W 底${neckBreak?'（頸線突破確認）':'（待突破頸線）'}`,
+        desc:`偵測到雙底結構。底一 ${low1Val.toFixed(1)}，底二 ${low2Val.toFixed(1)}（差距 ${(Math.abs(low1Val-low2Val)/low1Val*100).toFixed(1)}%），頸線 ${neckVal.toFixed(1)}。${neckBreak?`已突破頸線，理論目標 ${target}。`:'等待突破頸線確認。'}`,
+        badge:neckBreak?'bull':'warn',badgeText:neckBreak?'W底確認':'W底待確認',strength:neckBreak?4:2,max:5,
+        criteria:[
+          {pass:true,text:'底部一',val:low1Val.toFixed(1)},
+          {pass:true,text:'底部二',val:low2Val.toFixed(1)},
+          {pass:Math.abs(low1Val-low2Val)/low1Val<0.03,text:'底部對稱',val:`差距 ${(Math.abs(low1Val-low2Val)/low1Val*100).toFixed(1)}%`},
+          {pass:neckBreak,text:'突破頸線',val:neckBreak?`${last.close.toFixed(1)} > ${neckVal.toFixed(1)}`:`收 ${last.close.toFixed(1)} < ${neckVal.toFixed(1)}`},
+          {pass:neckBreak,text:'目標價',val:neckBreak?target:'待突破後計算'},
+        ]});
+    }
+  }
+
+  // ── 頭肩頂 ────────────────────────────────────────────────
+  if(data.length>=40){
+    const seg=data.slice(-40);
+    const peaks=seg.map((d,i)=>{
+      if(i<2||i>seg.length-3)return{idx:i,val:0};
+      const isP=d.high>seg[i-1].high&&d.high>seg[i-2].high&&d.high>seg[i+1].high&&d.high>seg[i+2].high;
+      return{idx:i,val:isP?d.high:0};
+    }).filter(p=>p.val>0).sort((a,b)=>b.val-a.val).slice(0,5);
+    if(peaks.length>=3){
+      const byIdx=[...peaks].sort((a,b)=>a.idx-b.idx);
+      const head=peaks[0];
+      const leftPeaks=byIdx.filter(p=>p.idx<head.idx);
+      const rightPeaks=byIdx.filter(p=>p.idx>head.idx);
+      if(leftPeaks.length&&rightPeaks.length){
+        const lSh=leftPeaks[leftPeaks.length-1], rSh=rightPeaks[0];
+        const symOK=Math.abs(lSh.val-rSh.val)/head.val<0.06;
+        const sizeOK=head.val>lSh.val*1.03&&head.val>rSh.val*1.03;
+        if(symOK&&sizeOK){
+          sigs.push({id:'head_shoulder',type:'bearish',icon:'👤',title:'頭肩頂型態（初篩）',
+            desc:`偵測三峰結構：左肩 ${lSh.val.toFixed(1)}、頭部 ${head.val.toFixed(1)}、右肩 ${rSh.val.toFixed(1)}。肩部對稱度良好（差距 ${(Math.abs(lSh.val-rSh.val)/head.val*100).toFixed(1)}%）。此型態確認需等待頸線跌破，注意止損。`,
+            badge:'bear',badgeText:'頭肩頂初篩',strength:3,max:5,
+            criteria:[
+              {pass:null,text:'左肩',val:lSh.val.toFixed(1)},
+              {pass:null,text:'頭部',val:head.val.toFixed(1)},
+              {pass:null,text:'右肩',val:rSh.val.toFixed(1)},
+              {pass:symOK,text:'肩部對稱',val:symOK?'良好':'不佳'},
+              {pass:null,text:'注意',val:'需等頸線跌破確認'},
+            ]});
+        }
+      }
+    }
+  }
+
+  // ── 價格高於關鍵均線支撐 ────────────────────────────────────
+  if(lS20&&lS60){
+    const aboveBoth=last.close>lS20&&last.close>lS60;
+    const ma20Rising=lS20>sma(data,20)[N-5];
+    if(aboveBoth&&ma20Rising&&vRatio>1.2&&!sigs.find(s=>s.type==='bullish'&&s.strength>=4)){
+      sigs.push({id:'multi_confirm',type:'bullish',icon:'🎯',title:'多重指標共振確認',
+        desc:`收盤 ${last.close} 站穩20MA(${lS20.toFixed(1)})與60MA(${lS60.toFixed(1)})之上，均線多頭排列，量能放大 ${vRatio.toFixed(1)}x，技術面偏多。`,
+        badge:'bull',badgeText:'多重確認',strength:4,max:5,
+        criteria:[
+          {pass:true,text:'站穩20MA',val:lS20.toFixed(1)},
+          {pass:true,text:'站穩60MA',val:lS60.toFixed(1)},
+          {pass:ma20Rising,text:'20MA上揚',val:ma20Rising?'是':'否'},
+          {pass:vRatio>1.2,text:'量能放大',val:`${vRatio.toFixed(1)}x`},
+        ]});
+    }
+  }
+
+  return sigs;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SCORE
+// ═══════════════════════════════════════════════════════════════
+function calcScore(sigs){
+  const bull=sigs.filter(s=>s.type==='bullish').reduce((a,s)=>a+s.strength,0);
+  const bear=sigs.filter(s=>s.type==='bearish').reduce((a,s)=>a+s.strength,0);
+  return Math.max(-10,Math.min(10,bull-bear));
+}
+function updateScoreUI(sigs){
+  const score=calcScore(sigs);
+  const pct=((score+10)/20)*100;
+  const color=score>3?'var(--red)':score<-3?'var(--green)':'var(--amber)';
+  const fill=document.getElementById('scoreFill');
+  if(fill){fill.style.width=pct+'%';fill.style.background=color;}
+  const num=document.getElementById('scoreNum');
+  if(num){num.textContent=(score>0?'+':'')+score;num.style.color=color;}
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════════════════════════
+function renderCharts(data){
+  kSeries.setData(data.map(d=>({time:d.time,open:d.open,high:d.high,low:d.low,close:d.close})));
+  volSeries.setData(data.map(d=>({time:d.time,value:d.volume,color:d.close>=d.open?'rgba(239,68,68,.5)':'rgba(16,185,129,.5)'})));
+  const s20=sma(data,20), s60=sma(data,60), bD=boll(data);
+  ma20S.setData(data.flatMap((d,i)=>s20[i]!==null?[{time:d.time,value:s20[i]}]:[]));
+  ma60S.setData(data.flatMap((d,i)=>s60[i]!==null?[{time:d.time,value:s60[i]}]:[]));
+  bollUpS.setData(data.flatMap((d,i)=>bD[i].u!==null?[{time:d.time,value:bD[i].u}]:[]));
+  bollMidS.setData(data.flatMap((d,i)=>bD[i].mid!==null?[{time:d.time,value:bD[i].mid}]:[]));
+  bollLowS.setData(data.flatMap((d,i)=>bD[i].l!==null?[{time:d.time,value:bD[i].l}]:[]));
+  const {dif:df,dea:de,hist:ht}=macd(data);
+  macdHistS.setData(data.map((d,i)=>({time:d.time,value:ht[i],color:ht[i]>=0?'#ef4444':'#10b981'})));
+  macdDifS.setData(data.map((d,i)=>({time:d.time,value:df[i]})));
+  macdDeaS.setData(data.map((d,i)=>({time:d.time,value:de[i]})));
+  const r6=rsi(data,6), r14=rsi(data,14);
+  rsi6S.setData(data.flatMap((d,i)=>r6[i]!==null?[{time:d.time,value:r6[i]}]:[]));
+  rsi14S.setData(data.flatMap((d,i)=>r14[i]!==null?[{time:d.time,value:r14[i]}]:[]));
+  const kdD=kd(data);
+  kdKS.setData(data.flatMap((d,i)=>kdD[i].k!==null?[{time:d.time,value:kdD[i].k}]:[]));
+  kdDS.setData(data.flatMap((d,i)=>kdD[i].d!==null?[{time:d.time,value:kdD[i].d}]:[]));
+
+  const N=data.length-1;
+  const $=id=>document.getElementById(id);
+  $('lMacdDif').textContent=`DIF ${df[N].toFixed(2)}`;
+  $('lMacdDea').textContent=`DEA ${de[N].toFixed(2)}`;
+  $('lMacdH').textContent=`MACD ${ht[N].toFixed(2)}`;
+  $('lRsi6').textContent=`RSI6 ${r6[N]?r6[N].toFixed(1):'--'}`;
+  $('lRsi14').textContent=`RSI14 ${r14[N]?r14[N].toFixed(1):'--'}`;
+  $('lK').textContent=`K ${kdD[N].k?kdD[N].k.toFixed(1):'--'}`;
+  $('lD').textContent=`D ${kdD[N].d?kdD[N].d.toFixed(1):'--'}`;
+  setTimeout(()=>{[kChart,macdChart,rsiChart,kdChart].forEach(c=>c.timeScale().fitContent());},80);
+}
+
+function renderVP(data){
+  const canvas=document.getElementById('vpCanvas');
+  const dpr=window.devicePixelRatio||1, w=canvas.offsetWidth, h=240;
+  canvas.width=w*dpr; canvas.height=h*dpr; canvas.style.width=w+'px'; canvas.style.height=h+'px';
+  const ctx=canvas.getContext('2d'); ctx.scale(dpr,dpr);
+  if(!data.length)return;
+  const prices=data.flatMap(d=>[d.high,d.low]);
+  const minP=Math.min(...prices), maxP=Math.max(...prices);
+  const nBins=36, binSz=(maxP-minP)/nBins;
+  const bins=Array(nBins).fill(0).map(()=>({v:0,bv:0}));
+  data.forEach(d=>{const ap=(d.open+d.close)/2,bi=Math.min(nBins-1,Math.floor((ap-minP)/binSz));bins[bi].v+=d.volume;if(d.close>=d.open)bins[bi].bv+=d.volume;});
+  const maxV=Math.max(...bins.map(b=>b.v)), pCol=62, barMaxW=w*0.6, pd={t:8,b:8};
+  const binH=(h-pd.t-pd.b)/nBins, curClose=data[data.length-1].close;
+  ctx.clearRect(0,0,w,h);
+  bins.forEach((bin,i)=>{
+    const y=h-pd.b-(i+1)*binH, pL=minP+i*binSz, pH=pL+binSz;
+    const isCur=curClose>=pL&&curClose<pH, isHV=bin.v>maxV*0.45;
+    const bW=(bin.v/maxV)*barMaxW, bvW=(bin.bv/maxV)*barMaxW;
+    if(isHV){ctx.fillStyle='rgba(239,68,68,.1)';ctx.fillRect(pCol,y,barMaxW,binH-1);}
+    ctx.fillStyle=isHV?'rgba(239,68,68,.55)':'rgba(0,212,255,.3)';
+    ctx.fillRect(pCol,y,bvW,binH-1);
+    ctx.fillStyle=isHV?'rgba(239,68,68,.2)':'rgba(0,212,255,.12)';
+    ctx.fillRect(pCol+bvW,y,bW-bvW,binH-1);
+    ctx.fillStyle=isCur?'#00d4ff':isHV?'#ef4444':'#475569';
+    ctx.font=`${isCur?'600':'400'} 10px JetBrains Mono, monospace`;
+    ctx.textAlign='right'; ctx.fillText(pL.toFixed(0),pCol-3,y+binH/2+4);
+    if(isCur){ctx.fillStyle='#00d4ff';ctx.fillRect(pCol,y,barMaxW+2,1);ctx.font='600 10px JetBrains Mono, monospace';ctx.textAlign='left';ctx.fillText('◄ '+curClose.toFixed(1),pCol+bW+4,y+binH/2+4);}
+    if(isHV){ctx.font='500 9px Noto Sans TC, sans-serif';ctx.textAlign='left';ctx.fillStyle='rgba(239,68,68,.8)';ctx.fillText('主力套牢',pCol+bW+4,y+binH/2+4);}
+  });
+}
+
+function renderSignals(sigs){
+  _curSigs=sigs;
+  const el=document.getElementById('signalList');
+  if(!sigs.length){el.innerHTML='<div class="empty">目前無明顯技術訊號</div>';return;}
+  el.innerHTML=sigs.map((s,i)=>`
+    <div class="signal-item" onclick="openModal(${i})">
+      <div class="sig-icon ${s.type}">${s.icon}</div>
+      <div class="sig-body">
+        <div class="sig-title">${s.title}</div>
+        <div class="sig-desc">${s.desc.length>70?s.desc.slice(0,70)+'…':s.desc}</div>
+        <div class="sig-meta">
+          <span class="badge badge-${s.badge}">${s.badgeText}</span>
+          <div class="strength-bar">${Array(s.max).fill(0).map((_,j)=>`<div class="sdot ${j<s.strength?s.badge:''}"></div>`).join('')}</div>
+          <span style="font-size:9px;color:var(--text3)">點擊展開</span>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+function renderHistory(){
+  const el=document.getElementById('historyList');
+  if(!signalHistory.length){el.innerHTML='<div class="empty" style="padding:10px 0">暫無紀錄</div>';return;}
+  el.innerHTML=signalHistory.slice(0,20).map(h=>`
+    <div class="history-item ${h.type}">
+      <div class="hi-title">${h.stock} ${NAMES[h.stock]||''} — ${h.title}</div>
+      <div class="hi-time">${h.time}</div>
+    </div>`).join('');
+}
+
+function addHistory(stock, sigs){
+  const t=new Date().toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+  sigs.forEach(s=>signalHistory.unshift({stock,title:s.title,type:s.type==='bullish'?'bull':s.type==='bearish'?'bear':'warn',time:t}));
+  if(signalHistory.length>60)signalHistory=signalHistory.slice(0,60);
+  localStorage.setItem('sigHist',JSON.stringify(signalHistory));
+  renderHistory();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MODAL
+// ═══════════════════════════════════════════════════════════════
+function openModal(i){
+  const s=_curSigs[i]; if(!s)return;
+  document.getElementById('mTitle').textContent=s.title;
+  document.getElementById('mBadges').innerHTML=`
+    <span class="badge badge-${s.badge}">${s.badgeText}</span>
+    <span class="badge badge-info">強度 ${s.strength}/${s.max}</span>
+    <span class="badge ${s.type==='bullish'?'badge-bull':s.type==='bearish'?'badge-bear':'badge-warn'}">${s.type==='bullish'?'多頭訊號':s.type==='bearish'?'空頭訊號':'中性觀察'}</span>`;
+  document.getElementById('mBody').textContent=s.desc;
+  document.getElementById('mCriteria').innerHTML=`
+    <div class="mc-head">判斷條件明細</div>
+    ${(s.criteria||[]).map(c=>`<div class="mc-row"><div class="mc-dot ${c.pass===true?'pass':c.pass===false?'fail':'na'}"></div><div class="mc-text">${c.text}</div><div class="mc-val">${c.val}</div></div>`).join('')}`;
+  document.getElementById('patternModal').classList.add('open');
+}
+function closeModal(){document.getElementById('patternModal').classList.remove('open');}
+
+// ═══════════════════════════════════════════════════════════════
+// CHIPS
+// ═══════════════════════════════════════════════════════════════
+function renderChips(stockId){
+  const sg=()=>Math.random()>0.45?1:-1;
+  const fmt=n=>(n>0?'+':'')+n.toLocaleString();
+  const fii=sg()*Math.floor(Math.random()*18000+500);
+  const it=sg()*Math.floor(Math.random()*4000+100);
+  const dealer=sg()*Math.floor(Math.random()*2500+50);
+  const total=fii+it+dealer;
+  const margin=Math.floor(30000+Math.random()*50000);
+  const shortV=Math.floor(500+Math.random()*3000);
+  const snr=((shortV/margin)*100).toFixed(1);
+  const $=id=>document.getElementById(id);
+  const setC=(id,v)=>{$(id).textContent=fmt(v);$(id).className='chip-val '+(v>0?'buy':'sell');};
+  setC('cFii',fii); $('cFiiSub').textContent='張（'+( fii>0?'買超':'賣超')+'）';
+  setC('cIt',it); $('cItSub').textContent='張（'+(it>0?'買超':'賣超')+'）';
+  setC('cDealer',dealer); $('cDealerSub').textContent='張（'+(dealer>0?'買超':'賣超')+'）';
+  setC('cTotal',total);
+  $('cMargin').textContent=margin.toLocaleString(); $('cMarginSub').textContent='張（融資）';
+  $('cShort').textContent=shortV.toLocaleString(); $('cShortSub').textContent='張（融券）';
+  $('cBoard').textContent=(60+Math.random()*20).toFixed(1)+'%';
+  $('cSnR').textContent=snr+'%';
+  // Big orders
+  const bp=rawData.length?rawData[rawData.length-1].close:100;
+  let tbody='';
+  for(let i=0;i<10;i++){
+    const isB=Math.random()>0.5, price=(bp*(0.98+Math.random()*.04)).toFixed(1), lots=Math.floor(150+Math.random()*2000);
+    const amt=Math.floor(price*lots/100), h=Math.floor(9+i*.55).toString().padStart(2,'0'), m=Math.floor(Math.random()*60).toString().padStart(2,'0');
+    tbody+=`<tr><td>${h}:${m}</td><td class="${isB?'buy-side':'sell-side'}">${isB?'主買':'主賣'}</td><td>${price}</td><td>${lots.toLocaleString()}</td><td>${amt.toLocaleString()}</td></tr>`;
+  }
+  $('bigOrdersBody').innerHTML=tbody;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// QUOTE
+// ═══════════════════════════════════════════════════════════════
+function updateQuote(data, id){
+  const last=data[data.length-1], prev=data[data.length-2];
+  const chg=last.close-prev.close, pct=chg/prev.close*100, up=chg>=0;
+  document.getElementById('quoteHeader').style.display='';
+  document.getElementById('qName').textContent=(NAMES[id]||id)+' '+id;
+  const qp=document.getElementById('qPrice');
+  qp.textContent=last.close.toFixed(1); qp.className='quote-price '+(up?'up':'dn');
+  const qc=document.getElementById('qChange');
+  qc.textContent=(up?'▲':'▼')+' '+Math.abs(chg).toFixed(1)+' ('+(up?'+':'')+pct.toFixed(2)+'%)';
+  qc.className='quote-change '+(up?'up':'dn');
+  document.getElementById('qOpen').textContent=last.open.toFixed(1);
+  document.getElementById('qHigh').textContent=last.high.toFixed(1);
+  document.getElementById('qLow').textContent=last.low.toFixed(1);
+  document.getElementById('qVol').textContent=(last.volume/1000).toFixed(0)+'K';
+  document.getElementById('lastUpdate').textContent='更新 '+new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'});
+}
+
+// ═══════════════════════════════════════════════════════════════
+// DATA FETCH
+// ═══════════════════════════════════════════════════════════════
+const RANGES={'5d':'5d','3m':'3mo','6m':'6mo','1y':'1y','2y':'2y'};
+async function fetchData(id){
+  const url=`https://query1.finance.yahoo.com/v8/finance/chart/${id}.TW?interval=1d&range=${RANGES[currentPeriod]}`;
+  try{
+    const r=await fetch(url); if(!r.ok)throw 0;
+    const j=await r.json(), res=j.chart.result[0], ts=res.timestamp, q=res.indicators.quote[0];
+    return ts.map((t,i)=>({time:Math.floor(t),open:+(q.open[i]||0).toFixed(2),high:+(q.high[i]||0).toFixed(2),low:+(q.low[i]||0).toFixed(2),close:+(q.close[i]||0).toFixed(2),volume:q.volume[i]||0})).filter(d=>d.open&&d.close&&d.high&&d.low);
+  }catch{return genDemo(id);}
+}
+function genDemo(id){
+  const base={'2330':860,'2317':150,'2454':1100,'3661':3000,'2412':130,'2308':320,'2382':300,'2303':55,'2609':90,'2615':80}[id]||200;
+  const days={'5d':7,'3m':70,'6m':135,'1y':260,'2y':520}[currentPeriod]||70;
+  const data=[]; let p=base;
+  for(let i=days;i>=0;i--){
+    const d=new Date(Date.now()-i*86400000);
+    if(d.getDay()===0||d.getDay()===6)continue;
+    const c=(Math.random()-.47)*p*.022, o=p; p=Math.max(p*.5,p+c);
+    data.push({time:Math.floor(d/1000),open:+o.toFixed(1),high:+(Math.max(o,p)*(1+Math.random()*.007)).toFixed(1),low:+(Math.min(o,p)*(1-Math.random()*.007)).toFixed(1),close:+p.toFixed(1),volume:Math.floor(5000+Math.random()*60000)});
+  }
+  return data;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// LOAD STOCK
+// ═══════════════════════════════════════════════════════════════
+async function loadStock(){
+  const input=document.getElementById('stockInput');
+  const id=(input.value.trim()||currentStock).toUpperCase();
+  currentStock=id; input.value='';
+  document.querySelectorAll('.wl-chip').forEach(c=>c.classList.toggle('active',c.dataset.id===id));
+  document.getElementById('chartLoading').style.display='flex';
+  document.getElementById('chartLoading').innerHTML='<div class="spinner"></div>載入 '+id+'...';
+  const data=await fetchData(id);
+  if(!data||data.length<5){
+    document.getElementById('chartLoading').innerHTML='<div style="color:var(--text2)">找不到此股票資料，請確認代號</div>';
+    return;
+  }
+  rawData=data;
+  updateQuote(data,id);
+  renderCharts(data);
+  renderVP(data);
+  const sigs=detectSignals(data);
+  updateScoreUI(sigs);
+  renderSignals(sigs);
+  addHistory(id,sigs);
+  renderChips(id);
+  checkAlerts(id,data,sigs);
+  document.getElementById('chartLoading').style.display='none';
+}
+function quickLoad(id){currentStock=id;loadStock();}
+function setPeriod(p){
+  currentPeriod=p;
+  document.querySelectorAll('.period-btn').forEach(b=>{
+    const map={'5d':'5日','3m':'3月','6m':'6月','1y':'1年','2y':'2年'};
+    b.classList.toggle('active',b.textContent===map[p]);
+  });
+  loadStock();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SCANNER
+// ═══════════════════════════════════════════════════════════════
+function renderScanList(){
+  const el=document.getElementById('scanTags');
+  el.innerHTML=scanList.map(id=>`<div class="scan-tag"><span>${id}</span><span class="scan-tag-del" onclick="scanWlRemove('${id}')">×</span></div>`).join('');
+}
+function scanWlAdd(){
+  const inp=document.getElementById('scanAddInput');
+  const id=inp.value.trim().toUpperCase();
+  if(!id)return;
+  if(!scanList.includes(id)&&scanList.length<30){scanList.push(id);localStorage.setItem('scanList',JSON.stringify(scanList));renderScanList();}
+  inp.value='';
+}
+function scanWlRemove(id){scanList=scanList.filter(s=>s!==id);localStorage.setItem('scanList',JSON.stringify(scanList));renderScanList();}
+function toggleCond(el,cls='on'){el.classList.toggle(cls);}
+function clearScan(){document.getElementById('scanResults').innerHTML='<div class="empty">已清除結果</div>';}
+
+async function startScan(){
+  if(scanning)return;
+  scanning=true;
+  const btn=document.getElementById('scanBtn'); btn.disabled=true;
+  const pw=document.getElementById('progWrap'); pw.style.display='';
+  const pf=document.getElementById('progFill'), pl=document.getElementById('progLbl');
+  const results=document.getElementById('scanResults');
+  results.innerHTML='';
+  const getRatio=()=>parseFloat(document.getElementById('c-vol-ratio').value)||2.0;
+  const getRsiOb=()=>parseFloat(document.getElementById('c-rsi-ob-v').value)||80;
+  const getRsiOs=()=>parseFloat(document.getElementById('c-rsi-os-v').value)||20;
+  const hasClass=id=>document.getElementById(id)?.classList.contains('on');
+  const matchesConditions=(sigs,data)=>{
+    const last=data[data.length-1], prev=data[data.length-2];
+    const vols=data.map(d=>d.volume), vol20=vols.slice(-21,-1).reduce((a,b)=>a+b,0)/20;
+    const vr=last.volume/vol20;
+    const s20=sma(data,20), lS20=s20[s20.length-1], pS20=s20[s20.length-2];
+    const bD=boll(data), lB=bD[data.length-1], pB=bD[data.length-2];
+    const r14=rsi(data,14), lR=r14[r14.length-1];
+    const high60=Math.max(...data.slice(-61,-1).map(d=>d.high));
+    const checks=[];
+    if(hasClass('c-vol-surge'))checks.push(vr>=getRatio());
+    if(hasClass('c-vol-shrink'))checks.push(vr<0.4);
+    if(hasClass('c-break-high'))checks.push(last.close>high60&&prev.close<=high60);
+    if(hasClass('c-break-ma20'))checks.push(lS20&&pS20&&prev.close<pS20&&last.close>lS20);
+    if(hasClass('c-break-boll'))checks.push(lB.u&&last.close>lB.u&&prev.close<=pB.u);
+    const kdD2=kd(data), lKD=kdD2[kdD2.length-1], pKD=kdD2[kdD2.length-2];
+    if(hasClass('c-kd-gold'))checks.push(pKD.k&&lKD.k&&pKD.k<pKD.d&&lKD.k>lKD.d&&lKD.k<50);
+    if(hasClass('c-kd-dead'))checks.push(pKD.k&&lKD.k&&pKD.k>pKD.d&&lKD.k<lKD.d&&lKD.k>50);
+    const {dif:df,dea:de}=macd(data), N2=df.length;
+    if(hasClass('c-macd-gold'))checks.push(df[N2-2]<de[N2-2]&&df[N2-1]>de[N2-1]);
+    if(hasClass('c-rsi-ob'))checks.push(lR&&lR>getRsiOb());
+    if(hasClass('c-rsi-os'))checks.push(lR&&lR<getRsiOs());
+    if(hasClass('c-triangle'))checks.push(sigs.some(s=>s.id==='triangle'));
+    if(hasClass('c-wbottom'))checks.push(sigs.some(s=>s.id==='wbottom'));
+    if(hasClass('c-headsh'))checks.push(sigs.some(s=>s.id==='head_shoulder'));
+    if(!checks.length)return false;
+    return checks.some(Boolean);
+  };
+
+  const hits=[];
+  for(let i=0;i<scanList.length;i++){
+    const id=scanList[i];
+    pf.style.width=((i+1)/scanList.length*100)+'%';
+    pl.textContent=`掃描中 ${id}… (${i+1}/${scanList.length})`;
+    let data=scanCache[id+currentPeriod];
+    if(!data){data=await fetchData(id);scanCache[id+currentPeriod]=data;}
+    if(data&&data.length>15){
+      const sigs=detectSignals(data);
+      if(matchesConditions(sigs,data)){
+        const last=data[data.length-1], prev=data[data.length-2];
+        const chg=last.close-prev.close, up=chg>=0;
+        hits.push({id,data,sigs,last,up,chg,pct:chg/prev.close*100});
+      }
+    }
+    await new Promise(r=>setTimeout(r,120));
+  }
+
+  pw.style.display='none'; btn.disabled=false; scanning=false;
+  if(!hits.length){results.innerHTML='<div class="empty">未找到符合條件的股票</div>';return;}
+
+  hits.sort((a,b)=>calcScore(b.sigs)-calcScore(a.sigs));
+  results.innerHTML=hits.map(h=>{
+    const score=calcScore(h.sigs);
+    const scorePct=((score+10)/20*100);
+    const scoreColor=score>3?'var(--red)':score<-3?'var(--green)':'var(--amber)';
+    const bullSigs=h.sigs.filter(s=>s.type==='bullish'), bearSigs=h.sigs.filter(s=>s.type==='bearish'), neutSigs=h.sigs.filter(s=>s.type==='neutral');
+    return`<div class="sr-item" onclick="quickLoad('${h.id}');switchTab('chart')">
+      <div class="sr-head">
+        <div><div class="sr-name">${h.id} <span style="font-size:11px;color:var(--text2);font-family:var(--font)">${NAMES[h.id]||''}</span></div></div>
+        <div class="sr-price" style="color:${h.up?'var(--red)':'var(--green)'}">${h.last.close.toFixed(1)} <span style="font-size:11px">${h.up?'▲':'▼'}${Math.abs(h.chg).toFixed(1)}(${h.pct.toFixed(1)}%)</span></div>
+      </div>
+      <div class="sr-badges">
+        ${bullSigs.slice(0,2).map(s=>`<span class="badge badge-bull">${s.badgeText}</span>`).join('')}
+        ${bearSigs.slice(0,2).map(s=>`<span class="badge badge-bear">${s.badgeText}</span>`).join('')}
+        ${neutSigs.slice(0,1).map(s=>`<span class="badge badge-warn">${s.badgeText}</span>`).join('')}
+      </div>
+      <div class="sr-score">技術評分 ${(score>0?'+':'')+score} · ${h.sigs.length} 個訊號</div>
+      <div class="sbar">${Array(10).fill(0).map((_,j)=>`<div class="sseg" style="background:${j<((score+10)/20*10)?scoreColor:'var(--border)'}"></div>`).join('')}</div>
+    </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ALERTS
+// ═══════════════════════════════════════════════════════════════
+function renderAlerts(){
+  const el=document.getElementById('alertList');
+  const badge=document.getElementById('alertCountBadge');
+  if(badge)badge.textContent=alerts.length?`(${alerts.length})`:'';
+  if(!alerts.length){el.innerHTML='<div class="empty">尚未設定任何警報</div>';return;}
+  el.innerHTML=alerts.map((a,i)=>`
+    <div class="alert-item">
+      <div class="alert-left">
+        <div class="alert-name">${a.stock} ${NAMES[a.stock]||''} ${a.triggeredToday?'<span class="trigger-badge">今日觸發</span>':''}</div>
+        <div class="alert-cond">${ALERT_LABELS[a.type]||a.type}${a.param?' ('+a.param+')':''}</div>
+        <div class="alert-meta">建立於 ${a.createdAt}${a.note?' · '+a.note:''}</div>
+      </div>
+      <div class="alert-actions">
+        <label class="toggle-wrap"><input type="checkbox" ${a.enabled?'checked':''} onchange="toggleAlert(${i},this.checked)"><div class="toggle-track"></div></label>
+        <div class="alert-del" onclick="deleteAlert(${i})">×</div>
+      </div>
+    </div>`).join('');
+}
+function renderAlertHistory(){
+  const el=document.getElementById('alertHistList');
+  if(!alertHistory.length){el.innerHTML='<div class="empty" style="padding:8px 0">尚無觸發紀錄</div>';return;}
+  el.innerHTML=alertHistory.slice(0,15).map(h=>`
+    <div class="history-item ${h.type}">
+      <div class="hi-title">${h.stock} ${NAMES[h.stock]||''} — ${h.title}</div>
+      <div class="hi-time">${h.time}</div>
+    </div>`).join('');
+}
+function createAlert(){
+  const stock=document.getElementById('ac-stock').value.trim().toUpperCase();
+  const type=document.getElementById('ac-type').value;
+  const param=document.getElementById('ac-param').value.trim();
+  const note=document.getElementById('ac-note').value.trim();
+  if(!stock){showToast('⚠️ 請輸入股票代號');return;}
+  const t=new Date().toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+  alerts.push({stock,type,param,note,enabled:true,createdAt:t,triggeredToday:false});
+  localStorage.setItem('alertDefs',JSON.stringify(alerts));
+  renderAlerts();
+  document.getElementById('ac-stock').value='';
+  document.getElementById('ac-param').value='';
+  document.getElementById('ac-note').value='';
+  showToast('✓ 警報已建立：'+stock+' '+(ALERT_LABELS[type]||type));
+}
+function toggleAlert(i,v){alerts[i].enabled=v;localStorage.setItem('alertDefs',JSON.stringify(alerts));renderAlerts();}
+function deleteAlert(i){if(confirm('確定刪除此警報？')){alerts.splice(i,1);localStorage.setItem('alertDefs',JSON.stringify(alerts));renderAlerts();}}
+
+function checkAlerts(stockId,data,sigs){
+  let triggered=0;
+  alerts.filter(a=>a.enabled&&a.stock===stockId).forEach(a=>{
+    let hit=false;
+    const last=data[data.length-1], prev=data[data.length-2];
+    const vols=data.map(d=>d.volume), vol20=vols.slice(-21,-1).reduce((a,b)=>a+b,0)/20, vr=last.volume/vol20;
+    const s20=sma(data,20), lS20=s20[s20.length-1], pS20=s20[s20.length-2];
+    const r14=rsi(data,14), lR=r14[r14.length-1];
+    const high60=Math.max(...data.slice(-61,-1).map(d=>d.high));
+    const kdD2=kd(data), lKD=kdD2[kdD2.length-1], pKD=kdD2[kdD2.length-2];
+    const {dif:df,dea:de}=macd(data), N=df.length;
+    const param=parseFloat(a.param)||null;
+    switch(a.type){
+      case 'vol_surge': hit=vr>=(param||2.0); break;
+      case 'vol_shrink': hit=vr<0.4; break;
+      case 'break_high': hit=last.close>high60&&prev.close<=high60; break;
+      case 'break_ma20': hit=lS20&&pS20&&prev.close<pS20&&last.close>lS20; break;
+      case 'break_ma20_dn': hit=lS20&&pS20&&prev.close>pS20&&last.close<lS20; break;
+      case 'kd_golden': hit=pKD.k&&lKD.k&&pKD.k<pKD.d&&lKD.k>lKD.d&&lKD.k<50; break;
+      case 'kd_dead': hit=pKD.k&&lKD.k&&pKD.k>pKD.d&&lKD.k<lKD.d&&lKD.k>50; break;
+      case 'macd_golden': hit=df[N-2]<de[N-2]&&df[N-1]>de[N-1]; break;
+      case 'rsi_os': hit=lR&&lR<(param||20); break;
+      case 'rsi_ob': hit=lR&&lR>(param||80); break;
+      case 'triangle': hit=sigs.some(s=>s.id==='triangle'); break;
+      case 'wbottom': hit=sigs.some(s=>s.id==='wbottom'); break;
+      case 'head_shoulder': hit=sigs.some(s=>s.id==='head_shoulder'); break;
+      case 'price_above': hit=param&&last.close>param; break;
+      case 'price_below': hit=param&&last.close<param; break;
+    }
+    if(hit){
+      triggered++;
+      a.triggeredToday=true;
+      const t=new Date().toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+      const label=ALERT_LABELS[a.type]||a.type;
+      alertHistory.unshift({stock:stockId,title:label,type:'bull',time:t});
+      showToast(`🔔 警報觸發：${stockId} ${label}`);
+    }
+  });
+  if(triggered){localStorage.setItem('alertDefs',JSON.stringify(alerts));localStorage.setItem('alertHistory',JSON.stringify(alertHistory));renderAlerts();renderAlertHistory();}
+}
+
+// ═══════════════════════════════════════════════════════════════
+// TOAST
+// ═══════════════════════════════════════════════════════════════
+let _toastTimer;
+function showToast(msg){
+  const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show');
+  clearTimeout(_toastTimer); _toastTimer=setTimeout(()=>t.classList.remove('show'),3500);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// TAB / UI HELPERS
+// ═══════════════════════════════════════════════════════════════
+function switchTab(name){
+  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',['chart','chips','signals','scanner','alerts','notify'][i]===name));
+  document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  if(name==='signals'){renderSignals(_curSigs);renderHistory();}
+  if(name==='chips'&&rawData.length)renderChips(currentStock);
+  if(name==='alerts'){renderAlerts();renderAlertHistory();}
+  if(name==='notify'){initNotifyTab();}
+  if(name==='chart')setTimeout(()=>{kChart&&kChart.timeScale().fitContent();},60);
+}
+
+function initWatchlist(){
+  const chips=['2330','2317','2454','3661','2412','6505','2308','2382','2303','2609'];
+  document.getElementById('wlRow').innerHTML=chips.map(id=>`<div class="wl-chip ${id===currentStock?'active':''}" data-id="${id}" onclick="quickLoad('${id}')">${id}</div>`).join('');
+}
+
+document.getElementById('stockInput').addEventListener('keydown',e=>{if(e.key==='Enter')loadStock();});
+document.getElementById('scanAddInput').addEventListener('keydown',e=>{if(e.key==='Enter')scanWlAdd();});
+window.addEventListener('resize',()=>{if(rawData.length)renderVP(rawData);});
+
+window.addEventListener('load',()=>{
+  initCharts();
+  initWatchlist();
+  renderScanList();
+  renderAlerts();
+  renderAlertHistory();
+  renderHistory();
+  loadWorkerConfig();
+  loadStock();
+});
+
+// ═══════════════════════════════════════════════════════════════
+// ★★★ PHASE 3: LINE NOTIFY + CLOUDFLARE WORKER INTEGRATION ★★★
+// ═══════════════════════════════════════════════════════════════
+
+let workerConfig = JSON.parse(localStorage.getItem('workerConfig')||'{"url":"","apiKey":""}');
+
+function loadWorkerConfig(){
+  const u=document.getElementById('workerUrl'), k=document.getElementById('workerApiKey');
+  if(u) u.value=workerConfig.url||'';
+  if(k) k.value=workerConfig.apiKey||'';
+  if(workerConfig.url) updateWorkerStatus('configured','已設定 Worker URL');
+}
+
+function saveWorkerConfig(){
+  const url=(document.getElementById('workerUrl').value||'').trim().replace(/\/$/,'');
+  const key=(document.getElementById('workerApiKey').value||'').trim();
+  if(!url){showToast('⚠️ 請輸入 Worker URL');return;}
+  workerConfig={url,apiKey:key};
+  localStorage.setItem('workerConfig',JSON.stringify(workerConfig));
+  updateWorkerStatus('configured','已儲存設定');
+  showToast('✓ Worker 設定已儲存');
+}
+
+function updateWorkerStatus(state,text){
+  const dot=document.getElementById('workerStatusDot'), txt=document.getElementById('workerStatusText');
+  if(!dot||!txt)return;
+  const colors={ok:'var(--green)',configured:'var(--amber)',error:'var(--red)',idle:'var(--border)'};
+  dot.style.background=colors[state]||colors.idle;
+  txt.textContent=text;
+}
+
+async function workerFetch(path,method='GET',body=null){
+  const url=workerConfig.url;
+  if(!url)throw new Error('Worker URL 未設定，請先在 Line通知 頁籤儲存 Worker URL');
+  const opts={method,headers:{'Content-Type':'application/json'}};
+  if(workerConfig.apiKey)opts.headers['X-API-Key']=workerConfig.apiKey;
+  if(body)opts.body=JSON.stringify(body);
+  const resp=await fetch(url+path,opts);
+  if(!resp.ok){const e=await resp.text();throw new Error(`Worker ${resp.status}: ${e}`);}
+  return resp.json();
+}
+
+async function testWorkerConn(){
+  updateWorkerStatus('idle','測試中...');
+  try{
+    saveWorkerConfig();
+    const data=await workerFetch('/status');
+    const lastScan=data.lastScan;
+    const msg=lastScan
+      ?`上次掃描：${new Date(lastScan.time).toLocaleString('zh-TW')}｜掃描 ${lastScan.scanned} 檔，觸發 ${lastScan.triggered} 個`
+      :'Worker 正常，尚無掃描紀錄';
+    updateWorkerStatus('ok','✓ 連線正常');
+    showToast('✓ Worker 連線成功！'+(data.activeAlerts?` ${data.activeAlerts} 個警報啟用中`:''));
+  }catch(e){
+    updateWorkerStatus('error','✗ 連線失敗');
+    showToast('✗ '+e.message);
+  }
+}
+
+async function sendTestLine(){
+  showToast('📤 發送測試訊息...');
+  try{
+    const data=await workerFetch('/test-line','POST',{});
+    showToast('✅ Line 測試訊息已發送，請查看手機');
+  }catch(e){
+    showToast('✗ 發送失敗：'+e.message);
+  }
+}
+
+async function triggerManualScan(){
+  showToast('⚡ 立即掃描中，請稍候...');
+  const box=document.getElementById('scanLogBox');
+  if(box){box.style.display='';box.textContent='掃描執行中...';}
+  try{
+    const data=await workerFetch('/scan','POST',{});
+    const r=data.result;
+    const msg=`掃描完成\n掃描股票：${r.stockCount} 檔\n觸發警報：${r.triggered} 個\n${r.triggered>0?'已發送 Line 通知 ✓':'無訊號觸發'}`;
+    if(box){box.textContent=msg;}
+    showToast(r.triggered>0?`🔔 觸發 ${r.triggered} 個警報，Line 已通知`:'✓ 掃描完成，無訊號觸發');
+  }catch(e){
+    if(box){box.textContent='錯誤：'+e.message;}
+    showToast('✗ 掃描失敗：'+e.message);
+  }
+}
+
+async function loadLastScanLog(){
+  const box=document.getElementById('scanLogBox');
+  if(box)box.style.display='';
+  try{
+    const data=await workerFetch('/status');
+    const r=data.lastScan;
+    if(!r){if(box)box.textContent='Worker 尚無掃描紀錄';return;}
+    const tw=new Date(r.time).toLocaleString('zh-TW',{timeZone:'Asia/Taipei'});
+    if(box)box.textContent=`上次掃描時間：${tw}\n掃描股票：${r.stockCount} 檔（共 ${r.scanned} 次請求）\n觸發警報：${r.triggered} 個`;
+  }catch(e){
+    if(box)box.textContent='載入失敗：'+e.message;
+    showToast('✗ '+e.message);
+  }
+  await loadWorkerHistory();
+}
+
+async function loadWorkerHistory(){
+  try{
+    const data=await workerFetch('/history');
+    const list=document.getElementById('workerHistList');
+    if(!list)return;
+    if(!data.history||!data.history.length){
+      list.innerHTML='<div class="empty" style="padding:10px 0">尚無觸發紀錄</div>';return;
+    }
+    list.innerHTML=data.history.map(h=>`
+      <div class="history-item bull">
+        <div class="hi-title">${h.stock} ${NAMES[h.stock]||''} — ${ALERT_LABELS[h.type]||h.type}</div>
+        <div class="hi-time">${h.date}</div>
+      </div>`).join('');
+  }catch(e){/* silently fail */}
+}
+
+async function syncAlertsToWorker(){
+  const el=document.getElementById('syncStatus');
+  if(el)el.textContent='同步中...';
+  try{
+    const payload=alerts.map(a=>({stock:a.stock,type:a.type,param:a.param||'',note:a.note||'',enabled:!!a.enabled}));
+    const data=await workerFetch('/alerts','POST',{alerts:payload});
+    const msg=`✓ 已同步 ${data.count} 個警報至 Worker（${new Date().toLocaleString('zh-TW',{hour:'2-digit',minute:'2-digit'})}）`;
+    if(el)el.textContent=msg;
+    showToast('✓ 警報已同步至 Worker');
+  }catch(e){
+    if(el)el.textContent='✗ 同步失敗：'+e.message;
+    showToast('✗ 同步失敗：'+e.message);
+  }
+}
+
+function initNotifyTab(){
+  loadWorkerConfig();
+  const el=document.getElementById('syncStatus');
+  if(el&&alerts.length)el.textContent=`本地有 ${alerts.length} 個警報，${alerts.filter(a=>a.enabled).length} 個啟用中`;
+}
+</script>
+</body>
+</html>
