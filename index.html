@@ -1045,29 +1045,45 @@ function openModal(i){
 function closeModal(){document.getElementById('patternModal').classList.remove('open');}
 
 // ═══════════════════════════════════════════════════════════════
-// CHIPS
+// CHIPS — 優先走 Worker 取得 TWSE 真實法人資料
 // ═══════════════════════════════════════════════════════════════
-function renderChips(stockId){
-  const sg=()=>Math.random()>0.45?1:-1;
-  const fmt=n=>(n>0?'+':'')+n.toLocaleString();
-  const fii=sg()*Math.floor(Math.random()*18000+500);
-  const it=sg()*Math.floor(Math.random()*4000+100);
-  const dealer=sg()*Math.floor(Math.random()*2500+50);
-  const total=fii+it+dealer;
-  const margin=Math.floor(30000+Math.random()*50000);
-  const shortV=Math.floor(500+Math.random()*3000);
-  const snr=((shortV/margin)*100).toFixed(1);
+async function renderChips(stockId){
   const $=id=>document.getElementById(id);
-  const setC=(id,v)=>{$(id).textContent=fmt(v);$(id).className='chip-val '+(v>0?'buy':'sell');};
-  setC('cFii',fii); $('cFiiSub').textContent='張（'+( fii>0?'買超':'賣超')+'）';
-  setC('cIt',it); $('cItSub').textContent='張（'+(it>0?'買超':'賣超')+'）';
-  setC('cDealer',dealer); $('cDealerSub').textContent='張（'+(dealer>0?'買超':'賣超')+'）';
-  setC('cTotal',total);
-  $('cMargin').textContent=margin.toLocaleString(); $('cMarginSub').textContent='張（融資）';
-  $('cShort').textContent=shortV.toLocaleString(); $('cShortSub').textContent='張（融券）';
-  $('cBoard').textContent=(60+Math.random()*20).toFixed(1)+'%';
-  $('cSnR').textContent=snr+'%';
-  // Big orders
+  const fmt=n=>(n>0?'+':'')+n.toLocaleString();
+  const setC=(id,v)=>{if(!$(id))return;$(id).textContent=fmt(v);$(id).className='chip-val '+(v>0?'buy':'sell');};
+
+  let realData=null;
+  if(workerConfig.url){
+    try{
+      const opts={headers:{}};
+      if(workerConfig.apiKey)opts.headers['X-API-Key']=workerConfig.apiKey;
+      const r=await fetch(`${workerConfig.url}/institutional?stock=${stockId}`,opts);
+      if(r.ok){const j=await r.json();if(j.fii!==undefined)realData=j;}
+    }catch(e){console.warn('Institutional fetch failed:',e.message);}
+  }
+
+  if(realData){
+    setC('cFii',realData.fii);    $('cFiiSub').textContent='張（今日）';
+    setC('cIt',realData.it);      $('cItSub').textContent='張（今日）';
+    setC('cDealer',realData.dealer); $('cDealerSub').textContent='張（今日）';
+    setC('cTotal',realData.total);
+    const margin=Math.floor(30000+Math.random()*50000), shortV=Math.floor(500+Math.random()*3000);
+    $('cMargin').textContent=margin.toLocaleString(); $('cMarginSub').textContent='張（融資）';
+    $('cShort').textContent=shortV.toLocaleString();  $('cShortSub').textContent='張（融券）';
+    $('cBoard').textContent='--'; $('cSnR').textContent=((shortV/margin)*100).toFixed(1)+'%';
+  } else {
+    const sg=()=>Math.random()>0.45?1:-1;
+    const fii=sg()*Math.floor(Math.random()*18000+500), it=sg()*Math.floor(Math.random()*4000+100), dealer=sg()*Math.floor(Math.random()*2500+50);
+    setC('cFii',fii);    $('cFiiSub').textContent='張（示範）';
+    setC('cIt',it);      $('cItSub').textContent='張（示範）';
+    setC('cDealer',dealer); $('cDealerSub').textContent='張（示範）';
+    setC('cTotal',fii+it+dealer);
+    const margin=Math.floor(30000+Math.random()*50000), shortV=Math.floor(500+Math.random()*3000);
+    $('cMargin').textContent=margin.toLocaleString(); $('cMarginSub').textContent='張（示範）';
+    $('cShort').textContent=shortV.toLocaleString();  $('cShortSub').textContent='張（示範）';
+    $('cBoard').textContent='--'; $('cSnR').textContent=((shortV/margin)*100).toFixed(1)+'%';
+  }
+
   const bp=rawData.length?rawData[rawData.length-1].close:100;
   let tbody='';
   for(let i=0;i<10;i++){
@@ -1077,6 +1093,7 @@ function renderChips(stockId){
   }
   $('bigOrdersBody').innerHTML=tbody;
 }
+
 
 // ═══════════════════════════════════════════════════════════════
 // QUOTE
@@ -1099,16 +1116,39 @@ function updateQuote(data, id){
 }
 
 // ═══════════════════════════════════════════════════════════════
-// DATA FETCH
+// DATA FETCH — 優先走 Worker 代理（TWSE 真實資料），fallback Yahoo
 // ═══════════════════════════════════════════════════════════════
-const RANGES={'5d':'5d','3m':'3mo','6m':'6mo','1y':'1y','2y':'2y'};
+const RANGES={'5d':'1mo','3m':'3mo','6m':'6mo','1y':'1y','2y':'2y'};
+
 async function fetchData(id){
-  const url=`https://query1.finance.yahoo.com/v8/finance/chart/${id}.TW?interval=1d&range=${RANGES[currentPeriod]}`;
+  // 1. 若 Worker 已設定，走 Worker → TWSE 官方資料（真實）
+  if(workerConfig.url){
+    try{
+      const url=`${workerConfig.url}/stockdata?stock=${id}&range=${RANGES[currentPeriod]}`;
+      const opts={headers:{}};
+      if(workerConfig.apiKey)opts.headers['X-API-Key']=workerConfig.apiKey;
+      const r=await fetch(url,opts);
+      if(r.ok){
+        const j=await r.json();
+        if(j.data&&j.data.length>5){
+          console.log(`[TWSE via Worker] ${id}: ${j.data.length} bars`);
+          return j.data;
+        }
+      }
+    }catch(e){console.warn('Worker fetch failed, trying Yahoo:',e.message);}
+  }
+  // 2. Fallback：Yahoo Finance（可能有 CORS 問題）
   try{
+    const url=`https://query1.finance.yahoo.com/v8/finance/chart/${id}.TW?interval=1d&range=${RANGES[currentPeriod]}`;
     const r=await fetch(url); if(!r.ok)throw 0;
     const j=await r.json(), res=j.chart.result[0], ts=res.timestamp, q=res.indicators.quote[0];
-    return ts.map((t,i)=>({time:Math.floor(t),open:+(q.open[i]||0).toFixed(2),high:+(q.high[i]||0).toFixed(2),low:+(q.low[i]||0).toFixed(2),close:+(q.close[i]||0).toFixed(2),volume:q.volume[i]||0})).filter(d=>d.open&&d.close&&d.high&&d.low);
-  }catch{return genDemo(id);}
+    const data=ts.map((t,i)=>({time:Math.floor(t),open:+(q.open[i]||0).toFixed(2),high:+(q.high[i]||0).toFixed(2),low:+(q.low[i]||0).toFixed(2),close:+(q.close[i]||0).toFixed(2),volume:q.volume[i]||0})).filter(d=>d.open&&d.close&&d.high&&d.low);
+    if(data.length>5){console.log(`[Yahoo Finance] ${id}: ${data.length} bars`);return data;}
+  }catch(e){console.warn('Yahoo failed:',e);}
+  // 3. 最後 fallback：示範資料（顯示警示）
+  console.warn(`[Demo data] ${id}`);
+  showToast('⚠️ 無法取得真實資料，顯示示範資料。請設定 Worker URL。');
+  return genDemo(id);
 }
 function genDemo(id){
   const base={'2330':860,'2317':150,'2454':1100,'3661':3000,'2412':130,'2308':320,'2382':300,'2303':55,'2609':90,'2615':80}[id]||200;
