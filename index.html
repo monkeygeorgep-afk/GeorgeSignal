@@ -279,6 +279,10 @@ input:checked+.toggle-track::before{transform:translateX(18px)}
   <div class="tab" onclick="switchTab('chips')">籌碼法人</div>
   <div class="tab" onclick="switchTab('signals')">訊號偵測</div>
   <div class="tab" onclick="switchTab('scanner')">批量掃描</div>
+  <div class="tab" onclick="switchTab('watchboard')">📋 看板</div>
+  <div class="tab" onclick="switchTab('compare')">📊 比較</div>
+  <div class="tab" onclick="switchTab('portfolio')">💰 持股</div>
+  <div class="tab" onclick="switchTab('backtest')">🔍 回測</div>
   <div class="tab" onclick="switchTab('alerts')">警報設定</div>
   <div class="tab" onclick="switchTab('notify')">🔔 Line通知</div>
 </div>
@@ -294,6 +298,8 @@ input:checked+.toggle-track::before{transform:translateX(18px)}
   </div>
   <div class="chart-section">
     <div class="boll-legend">
+      <div class="boll-item"><div class="boll-line" style="background:#f472b6"></div>5MA</div>
+      <div class="boll-item"><div class="boll-line" style="background:#a3e635"></div>10MA</div>
       <div class="boll-item"><div class="boll-line" style="background:#00d4ff"></div>20MA</div>
       <div class="boll-item"><div class="boll-line" style="background:#f59e0b"></div>60MA</div>
       <div class="boll-item"><div class="boll-line" style="background:rgba(124,58,237,.8)"></div>布林上/下軌</div>
@@ -339,13 +345,33 @@ input:checked+.toggle-track::before{transform:translateX(18px)}
 <!-- ═══ TAB: chips ═══ -->
 <div id="tab-chips" class="tab-content">
   <div class="section">
-    <div class="section-title">三大法人（近5日累計）</div>
+    <!-- 日期選擇器 -->
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+      <span style="font-size:12px;color:var(--text2)">統計區間</span>
+      <div style="display:flex;gap:5px">
+        <button class="period-btn active" id="chipDay-1"  onclick="setChipDay(1)">今日</button>
+        <button class="period-btn"        id="chipDay-3"  onclick="setChipDay(3)">三日</button>
+        <button class="period-btn"        id="chipDay-5"  onclick="setChipDay(5)">五日</button>
+        <button class="period-btn"        id="chipDay-10" onclick="setChipDay(10)">十日</button>
+      </div>
+      <span id="chipDayNote" style="font-size:10px;color:var(--text3)">今日盤後資料</span>
+    </div>
+
+    <div class="section-title" id="chipSectionTitle">三大法人（今日）</div>
+    <!-- 數字卡片 -->
     <div class="chips-grid">
       <div class="chip-card"><div class="chip-lbl">外資</div><div class="chip-val" id="cFii">--</div><div class="chip-sub" id="cFiiSub">張</div></div>
       <div class="chip-card"><div class="chip-lbl">投信</div><div class="chip-val" id="cIt">--</div><div class="chip-sub" id="cItSub">張</div></div>
       <div class="chip-card"><div class="chip-lbl">自營商</div><div class="chip-val" id="cDealer">--</div><div class="chip-sub" id="cDealerSub">張</div></div>
-      <div class="chip-card"><div class="chip-lbl">合計</div><div class="chip-val" id="cTotal">--</div><div class="chip-sub">張（5日）</div></div>
+      <div class="chip-card"><div class="chip-lbl">合計</div><div class="chip-val" id="cTotal">--</div><div class="chip-sub" id="cTotalSub">張</div></div>
     </div>
+
+    <!-- 視覺化長條圖 -->
+    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:14px">
+      <div style="font-size:11px;color:var(--text3);margin-bottom:10px">法人多空強度</div>
+      <div id="chipBars" style="display:flex;flex-direction:column;gap:8px"></div>
+    </div>
+
     <div class="section-title">籌碼動向</div>
     <div class="chips-grid">
       <div class="chip-card"><div class="chip-lbl">融資餘額</div><div class="chip-val" id="cMargin" style="color:var(--amber)">--</div><div class="chip-sub" id="cMarginSub">張</div></div>
@@ -358,6 +384,9 @@ input:checked+.toggle-track::before{transform:translateX(18px)}
       <thead><tr><th>時間</th><th>方向</th><th>價格</th><th>張數</th><th>金額(萬)</th></tr></thead>
       <tbody id="bigOrdersBody"></tbody>
     </table>
+    <div class="section-title" style="margin-top:14px">籌碼集中度（近10日法人強度）</div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:6px">紅＝多頭強度（量增價漲）· 綠＝空頭強度（量增價跌）</div>
+    <canvas id="chipTrendChart" style="width:100%;height:120px;display:block;border-radius:8px;background:var(--bg3)"></canvas>
   </div>
 </div>
 
@@ -560,12 +589,163 @@ input:checked+.toggle-track::before{transform:translateX(18px)}
       <button class="ac-btn" onclick="syncAlertsToWorker()">🔄 立即同步警報至 Worker</button>
     </div>
 
+    <!-- 早盤摘要 & 連續買超 -->
+    <div class="section-title">進階推播功能</div>
+    <div class="ac-box" style="margin-bottom:12px">
+      <div class="ac-head">早盤摘要推播</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.7">
+        每日 09:00 自動整理自選股報價與當日訊號，一次發送 Line 總覽。<br>
+        <span style="color:var(--accent);font-size:11px">需將此功能端點部署至 Worker（見部署教學）</span>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="ac-btn" style="flex:1" onclick="sendMorningSummary()">📱 手動發送早盤摘要</button>
+      </div>
+    </div>
+    <div class="ac-box" style="margin-bottom:12px">
+      <div class="ac-head">連續買超偵測設定</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.7">
+        當外資或三大法人連續買超達 N 日時自動通知。
+      </div>
+      <div class="ac-row" style="margin-bottom:8px">
+        <div class="ac-field"><div class="ac-lbl">最少連續天數</div>
+          <select class="ac-select" id="consecDays">
+            <option value="3">3日</option><option value="5" selected>5日</option><option value="7">7日</option><option value="10">10日</option>
+          </select>
+        </div>
+        <div class="ac-field"><div class="ac-lbl">偵測對象</div>
+          <select class="ac-select" id="consecType">
+            <option value="fii">外資</option><option value="total">三大法人合計</option>
+          </select>
+        </div>
+      </div>
+      <button class="ac-btn" onclick="syncConsecAlert()">儲存連續買超設定</button>
+    </div>
+
     <!-- 通知歷史 -->
     <div class="section-title">Worker 觸發歷史</div>
     <div id="workerHistList" style="display:flex;flex-direction:column;gap:6px">
       <div class="empty" style="padding:16px 0">點擊「查看上次結果」載入</div>
     </div>
 
+  </div>
+</div>
+
+<!-- ═══ TAB: watchboard 自選股看板 ═══ -->
+<div id="tab-watchboard" class="tab-content">
+  <div class="section">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <div class="section-title" style="margin-bottom:0">自選股即時看板</div>
+      <button class="scan-btn-s" onclick="refreshWatchboard()">重新整理</button>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+      <select class="ac-select" id="wbSort" style="flex:1;min-width:100px;padding:5px 8px;font-size:12px" onchange="sortWatchboard()">
+        <option value="default">預設排序</option>
+        <option value="change_desc">漲幅 ↓</option>
+        <option value="change_asc">跌幅 ↓</option>
+        <option value="vol_desc">量比 ↓</option>
+      </select>
+      <select class="ac-select" id="wbFilter" style="flex:1;min-width:100px;padding:5px 8px;font-size:12px" onchange="sortWatchboard()">
+        <option value="all">全部</option>
+        <option value="up">上漲中</option>
+        <option value="down">下跌中</option>
+        <option value="vol">量能異常</option>
+      </select>
+    </div>
+    <div id="wbGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px"></div>
+  </div>
+</div>
+
+<!-- ═══ TAB: compare 多股比較 ═══ -->
+<div id="tab-compare" class="tab-content">
+  <div class="section">
+    <div class="section-title">多股走勢比較</div>
+    <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
+      <input class="ac-input" id="cmpStockA" placeholder="股票A（如 2330）" style="flex:1;min-width:80px;font-size:12px;padding:6px 10px">
+      <input class="ac-input" id="cmpStockB" placeholder="股票B（如 2317）" style="flex:1;min-width:80px;font-size:12px;padding:6px 10px">
+      <button class="scan-btn-p" onclick="runCompare()">比較</button>
+    </div>
+    <div class="period-bar" style="margin-bottom:0;background:transparent;padding:0 0 10px">
+      <button class="period-btn active" id="cmpP-3m" onclick="setCmpPeriod('3m')">3月</button>
+      <button class="period-btn" id="cmpP-6m" onclick="setCmpPeriod('6m')">6月</button>
+      <button class="period-btn" id="cmpP-1y" onclick="setCmpPeriod('1y')">1年</button>
+    </div>
+    <div id="cmpChartWrap" style="position:relative;height:260px;background:var(--bg3);border-radius:10px;margin-bottom:12px">
+      <div class="empty" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center">輸入兩支股票後點擊比較</div>
+      <div id="cmpChart" style="width:100%;height:100%"></div>
+    </div>
+    <div id="cmpStats" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px"></div>
+    <div class="section-title" style="margin-top:4px">相關係數與相對強弱</div>
+    <div id="cmpCorr" style="background:var(--bg3);border-radius:10px;padding:12px">
+      <div class="empty" style="padding:8px 0">比較後顯示</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TAB: portfolio 持股損益 ═══ -->
+<div id="tab-portfolio" class="tab-content">
+  <div class="section">
+    <div class="section-title">持股損益追蹤</div>
+    <div class="ac-box" style="margin-bottom:12px">
+      <div class="ac-head">新增持股</div>
+      <div class="ac-row">
+        <div class="ac-field"><div class="ac-lbl">股票代號</div><input class="ac-input" id="pf-stock" placeholder="2330"></div>
+        <div class="ac-field"><div class="ac-lbl">買入均價</div><input class="ac-input" id="pf-price" type="number" placeholder="850"></div>
+        <div class="ac-field"><div class="ac-lbl">持有張數</div><input class="ac-input" id="pf-lots" type="number" placeholder="10"></div>
+      </div>
+      <div class="ac-field"><div class="ac-lbl">備註（選填）</div><input class="ac-input" id="pf-note" placeholder="長期持有、波段…"></div>
+      <button class="ac-btn" onclick="addPortfolioItem()">新增持股</button>
+    </div>
+    <div class="section-title">持股總覽</div>
+    <div id="pfSummary" style="background:var(--bg3);border-radius:10px;padding:12px;margin-bottom:12px;display:none">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center">
+        <div><div style="font-size:10px;color:var(--text3)">總成本</div><div class="chip-val" id="pfTotalCost" style="font-size:16px;color:var(--text)">--</div></div>
+        <div><div style="font-size:10px;color:var(--text3)">總市值</div><div class="chip-val" id="pfTotalVal" style="font-size:16px;color:var(--text)">--</div></div>
+        <div><div style="font-size:10px;color:var(--text3)">總損益</div><div class="chip-val" id="pfTotalPnl" style="font-size:16px">--</div></div>
+      </div>
+    </div>
+    <div id="pfList" style="display:flex;flex-direction:column;gap:8px">
+      <div class="empty">尚無持股紀錄</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TAB: backtest 歷史回測 ═══ -->
+<div id="tab-backtest" class="tab-content">
+  <div class="section">
+    <div class="section-title">訊號歷史回測</div>
+    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:12px;font-size:12px;color:var(--text2);line-height:1.7">
+      選擇訊號條件，系統掃描歷史 K 線中所有觸發點，統計後續 N 日的報酬率，評估訊號勝率。
+    </div>
+    <div class="ac-box" style="margin-bottom:12px">
+      <div class="ac-head">回測設定</div>
+      <div class="ac-field"><div class="ac-lbl">回測股票</div><input class="ac-input" id="bt-stock" placeholder="留空 = 目前個股"></div>
+      <div class="ac-row">
+        <div class="ac-field">
+          <div class="ac-lbl">觸發訊號</div>
+          <select class="ac-select" id="bt-signal">
+            <option value="kd_golden">KD 黃金交叉</option>
+            <option value="kd_dead">KD 死亡交叉</option>
+            <option value="macd_golden">MACD 金叉</option>
+            <option value="break_ma20">穿越 20MA</option>
+            <option value="break_high">突破前高</option>
+            <option value="rsi_os">RSI 超賣</option>
+            <option value="vol_surge">成交量爆量</option>
+          </select>
+        </div>
+        <div class="ac-field" style="flex:0 0 90px">
+          <div class="ac-lbl">持有天數</div>
+          <select class="ac-select" id="bt-hold">
+            <option value="5">5日</option>
+            <option value="10" selected>10日</option>
+            <option value="20">20日</option>
+          </select>
+        </div>
+      </div>
+      <button class="ac-btn" onclick="runBacktest()">開始回測</button>
+    </div>
+    <div id="btResults" style="display:flex;flex-direction:column;gap:10px">
+      <div class="empty">設定條件後點擊「開始回測」</div>
+    </div>
   </div>
 </div>
 
@@ -589,8 +769,9 @@ input:checked+.toggle-track::before{transform:translateX(18px)}
 // STATE
 // ═══════════════════════════════════════════════════════════════
 let currentStock='2330', currentPeriod='3m', rawData=[];
+let currentChipDay=1;
 let kChart, macdChart, rsiChart, kdChart;
-let kSeries, volSeries, ma20S, ma60S, bollUpS, bollMidS, bollLowS;
+let kSeries, volSeries, ma5S, ma10S, ma20S, ma60S, bollUpS, bollMidS, bollLowS;
 let macdHistS, macdDifS, macdDeaS, rsi6S, rsi14S, kdKS, kdDS;
 let signalHistory = JSON.parse(localStorage.getItem('sigHist')||'[]');
 let alerts = JSON.parse(localStorage.getItem('alertDefs')||'[]');
@@ -612,6 +793,8 @@ function initCharts(){
   kChart=LightweightCharts.createChart($('klineChart'),{...o,height:300});
   kSeries=kChart.addCandlestickSeries({upColor:'#ef4444',downColor:'#10b981',borderUpColor:'#ef4444',borderDownColor:'#10b981',wickUpColor:'#ef4444',wickDownColor:'#10b981'});
   volSeries=kChart.addHistogramSeries({priceFormat:{type:'volume'},priceScaleId:'vol',scaleMargins:{top:.82,bottom:0}});
+  ma5S =kChart.addLineSeries({color:'#f472b6',lineWidth:1,priceLineVisible:false,lastValueVisible:false});
+  ma10S=kChart.addLineSeries({color:'#a3e635',lineWidth:1,priceLineVisible:false,lastValueVisible:false});
   ma20S=kChart.addLineSeries({color:'#00d4ff',lineWidth:1.5,priceLineVisible:false,lastValueVisible:false});
   ma60S=kChart.addLineSeries({color:'#f59e0b',lineWidth:1.5,priceLineVisible:false,lastValueVisible:false});
   bollUpS=kChart.addLineSeries({color:'rgba(124,58,237,.7)',lineWidth:1,priceLineVisible:false,lastValueVisible:false});
@@ -929,7 +1112,9 @@ function updateScoreUI(sigs){
 function renderCharts(data){
   kSeries.setData(data.map(d=>({time:d.time,open:d.open,high:d.high,low:d.low,close:d.close})));
   volSeries.setData(data.map(d=>({time:d.time,value:d.volume,color:d.close>=d.open?'rgba(239,68,68,.5)':'rgba(16,185,129,.5)'})));
-  const s20=sma(data,20), s60=sma(data,60), bD=boll(data);
+  const s5=sma(data,5), s10=sma(data,10), s20=sma(data,20), s60=sma(data,60), bD=boll(data);
+  ma5S .setData(data.flatMap((d,i)=>s5[i] !==null?[{time:d.time,value:s5[i]}] :[]));
+  ma10S.setData(data.flatMap((d,i)=>s10[i]!==null?[{time:d.time,value:s10[i]}]:[]));
   ma20S.setData(data.flatMap((d,i)=>s20[i]!==null?[{time:d.time,value:s20[i]}]:[]));
   ma60S.setData(data.flatMap((d,i)=>s60[i]!==null?[{time:d.time,value:s60[i]}]:[]));
   bollUpS.setData(data.flatMap((d,i)=>bD[i].u!==null?[{time:d.time,value:bD[i].u}]:[]));
@@ -1045,54 +1230,136 @@ function openModal(i){
 function closeModal(){document.getElementById('patternModal').classList.remove('open');}
 
 // ═══════════════════════════════════════════════════════════════
-// CHIPS — 優先走 Worker 取得 TWSE 真實法人資料
+// CHIPS — 多日選擇 + Worker TWSE 真實法人資料
 // ═══════════════════════════════════════════════════════════════
-async function renderChips(stockId){
-  const $=id=>document.getElementById(id);
-  const fmt=n=>(n>0?'+':'')+n.toLocaleString();
-  const setC=(id,v)=>{if(!$(id))return;$(id).textContent=fmt(v);$(id).className='chip-val '+(v>0?'buy':'sell');};
 
-  let realData=null;
-  if(workerConfig.url){
-    try{
-      const opts={headers:{}};
-      if(workerConfig.apiKey)opts.headers['X-API-Key']=workerConfig.apiKey;
-      const r=await fetch(`${workerConfig.url}/institutional?stock=${stockId}`,opts);
-      if(r.ok){const j=await r.json();if(j.fii!==undefined)realData=j;}
-    }catch(e){console.warn('Institutional fetch failed:',e.message);}
-  }
-
-  if(realData){
-    setC('cFii',realData.fii);    $('cFiiSub').textContent='張（今日）';
-    setC('cIt',realData.it);      $('cItSub').textContent='張（今日）';
-    setC('cDealer',realData.dealer); $('cDealerSub').textContent='張（今日）';
-    setC('cTotal',realData.total);
-    const margin=Math.floor(30000+Math.random()*50000), shortV=Math.floor(500+Math.random()*3000);
-    $('cMargin').textContent=margin.toLocaleString(); $('cMarginSub').textContent='張（融資）';
-    $('cShort').textContent=shortV.toLocaleString();  $('cShortSub').textContent='張（融券）';
-    $('cBoard').textContent='--'; $('cSnR').textContent=((shortV/margin)*100).toFixed(1)+'%';
-  } else {
-    const sg=()=>Math.random()>0.45?1:-1;
-    const fii=sg()*Math.floor(Math.random()*18000+500), it=sg()*Math.floor(Math.random()*4000+100), dealer=sg()*Math.floor(Math.random()*2500+50);
-    setC('cFii',fii);    $('cFiiSub').textContent='張（示範）';
-    setC('cIt',it);      $('cItSub').textContent='張（示範）';
-    setC('cDealer',dealer); $('cDealerSub').textContent='張（示範）';
-    setC('cTotal',fii+it+dealer);
-    const margin=Math.floor(30000+Math.random()*50000), shortV=Math.floor(500+Math.random()*3000);
-    $('cMargin').textContent=margin.toLocaleString(); $('cMarginSub').textContent='張（示範）';
-    $('cShort').textContent=shortV.toLocaleString();  $('cShortSub').textContent='張（示範）';
-    $('cBoard').textContent='--'; $('cSnR').textContent=((shortV/margin)*100).toFixed(1)+'%';
-  }
-
-  const bp=rawData.length?rawData[rawData.length-1].close:100;
-  let tbody='';
-  for(let i=0;i<10;i++){
-    const isB=Math.random()>0.5, price=(bp*(0.98+Math.random()*.04)).toFixed(1), lots=Math.floor(150+Math.random()*2000);
-    const amt=Math.floor(price*lots/100), h=Math.floor(9+i*.55).toString().padStart(2,'0'), m=Math.floor(Math.random()*60).toString().padStart(2,'0');
-    tbody+=`<tr><td>${h}:${m}</td><td class="${isB?'buy-side':'sell-side'}">${isB?'主買':'主賣'}</td><td>${price}</td><td>${lots.toLocaleString()}</td><td>${amt.toLocaleString()}</td></tr>`;
-  }
-  $('bigOrdersBody').innerHTML=tbody;
+// 從 Worker 抓取多天法人資料並累加
+async function fetchInstitutionalDays(stockId, days) {
+  if (!workerConfig.url) return null;
+  // 抓最近 days 天，透過多次呼叫 /institutional?stock=X&date=YYYYMMDD
+  // 實務上 Worker /institutional 只抓今日，多日累加利用 rawData 的收盤走勢估算
+  // 若 Worker 有今日資料，乘以天數係數（示範邏輯；生產環境可擴充 Worker 支援 date 參數）
+  try {
+    const opts = { headers: {} };
+    if (workerConfig.apiKey) opts.headers['X-API-Key'] = workerConfig.apiKey;
+    const r = await fetch(`${workerConfig.url}/institutional?stock=${stockId}`, opts);
+    if (!r.ok) return null;
+    const today = await r.json();
+    if (today.fii === undefined) return null;
+    if (days === 1) return { fii: today.fii, it: today.it, dealer: today.dealer, total: today.total, isReal: true };
+    // 多日：用 rawData 最近 days 根 K 線的漲跌趨勢加權累積（示範邏輯）
+    const recent = rawData.slice(-days);
+    const trend = recent.length ? recent.reduce((s, d) => s + (d.close >= d.open ? 1 : -1), 0) / recent.length : 0;
+    const mult = days * (0.7 + Math.abs(trend) * 0.5);
+    const scale = v => Math.round(v * mult * (0.85 + Math.random() * 0.3));
+    return {
+      fii:    scale(today.fii),
+      it:     scale(today.it),
+      dealer: scale(today.dealer),
+      total:  scale(today.total),
+      isReal: false, // 多日為估算
+    };
+  } catch (e) { return null; }
 }
+
+// 繪製法人強度長條圖
+function renderChipBars(fii, it, dealer) {
+  const el = document.getElementById('chipBars');
+  if (!el) return;
+  const items = [
+    { label: '外資', val: fii,    color: '#00d4ff' },
+    { label: '投信', val: it,     color: '#a78bfa' },
+    { label: '自營', val: dealer, color: '#f59e0b' },
+  ];
+  const maxAbs = Math.max(...items.map(i => Math.abs(i.val)), 1);
+  el.innerHTML = items.map(item => {
+    const pct = Math.abs(item.val) / maxAbs * 100;
+    const isPos = item.val >= 0;
+    const barColor = isPos ? item.color : '#ef4444';
+    const sign = isPos ? '+' : '';
+    return `
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="width:32px;font-size:11px;color:var(--text2);flex-shrink:0">${item.label}</div>
+        <div style="flex:1;height:14px;background:var(--bg2);border-radius:3px;overflow:hidden;position:relative">
+          <div style="position:absolute;${isPos?'left:50%':'right:50%'};top:0;height:100%;width:${pct/2}%;background:${barColor};border-radius:3px;opacity:.85"></div>
+          <div style="position:absolute;left:50%;top:0;width:1px;height:100%;background:var(--border)"></div>
+        </div>
+        <div style="width:68px;font-size:11px;font-family:var(--mono);color:${isPos?'var(--red)':'var(--green)'};text-align:right;flex-shrink:0">${sign}${item.val.toLocaleString()}</div>
+      </div>`;
+  }).join('');
+}
+
+function setChipDay(days) {
+  currentChipDay = days;
+  document.querySelectorAll('[id^="chipDay-"]').forEach(b => b.classList.remove('active'));
+  const btn = document.getElementById('chipDay-' + days);
+  if (btn) btn.classList.add('active');
+  const labels = { 1:'今日', 3:'三日累計', 5:'五日累計', 10:'十日累計' };
+  const notes  = { 1:'今日盤後資料', 3:'近3個交易日累計', 5:'近5個交易日累計', 10:'近10個交易日累計' };
+  const title = document.getElementById('chipSectionTitle');
+  const note  = document.getElementById('chipDayNote');
+  if (title) title.textContent = `三大法人（${labels[days]}）`;
+  if (note)  note.textContent  = notes[days];
+  if (rawData.length) renderChips(currentStock);
+}
+
+async function renderChips(stockId) {
+  const $ = id => document.getElementById(id);
+  const fmt = n => (n > 0 ? '+' : '') + n.toLocaleString();
+  const setC = (id, v) => {
+    if (!$(id)) return;
+    $(id).textContent = fmt(v);
+    $(id).className = 'chip-val ' + (v > 0 ? 'buy' : 'sell');
+  };
+  const dayLabel = { 1:'今日', 3:'三日', 5:'五日', 10:'十日' }[currentChipDay] || '';
+
+  // 取法人資料
+  let realData = await fetchInstitutionalDays(stockId, currentChipDay);
+
+  // 無 Worker 則用示範資料
+  if (!realData) {
+    const sg = () => Math.random() > 0.45 ? 1 : -1;
+    const base = currentChipDay;
+    realData = {
+      fii:    sg() * Math.floor(Math.random() * 18000 * base + 500),
+      it:     sg() * Math.floor(Math.random() *  4000 * base + 100),
+      dealer: sg() * Math.floor(Math.random() *  2500 * base +  50),
+      isReal: false,
+    };
+    realData.total = realData.fii + realData.it + realData.dealer;
+  }
+
+  const suffix = realData.isReal ? `（${dayLabel}）` : `（${dayLabel}，示範）`;
+  setC('cFii', realData.fii);    $('cFiiSub').textContent = '張' + suffix;
+  setC('cIt',  realData.it);     $('cItSub').textContent  = '張' + suffix;
+  setC('cDealer', realData.dealer); $('cDealerSub').textContent = '張' + suffix;
+  setC('cTotal', realData.total);   $('cTotalSub').textContent  = '張' + suffix;
+  renderChipBars(realData.fii, realData.it, realData.dealer);
+
+  // 融資券（示範）
+  const margin = Math.floor(30000 + Math.random() * 50000);
+  const shortV = Math.floor(500   + Math.random() *  3000);
+  $('cMargin').textContent = margin.toLocaleString(); $('cMarginSub').textContent = '張（融資）';
+  $('cShort').textContent  = shortV.toLocaleString(); $('cShortSub').textContent  = '張（融券）';
+  $('cBoard').textContent  = '--';
+  $('cSnR').textContent    = ((shortV / margin) * 100).toFixed(1) + '%';
+
+  // 盤後大單
+  const bp = rawData.length ? rawData[rawData.length - 1].close : 100;
+  let tbody = '';
+  for (let i = 0; i < 10; i++) {
+    const isB = Math.random() > 0.5;
+    const price = (bp * (0.98 + Math.random() * .04)).toFixed(1);
+    const lots = Math.floor(150 + Math.random() * 2000);
+    const amt  = Math.floor(price * lots / 100);
+    const h = Math.floor(9 + i * .55).toString().padStart(2, '0');
+    const m = Math.floor(Math.random() * 60).toString().padStart(2, '0');
+    tbody += `<tr><td>${h}:${m}</td><td class="${isB ? 'buy-side' : 'sell-side'}">${isB ? '主買' : '主賣'}</td><td>${price}</td><td>${lots.toLocaleString()}</td><td>${amt.toLocaleString()}</td></tr>`;
+  }
+  $('bigOrdersBody').innerHTML = tbody;
+  setTimeout(()=>renderChipTrend(stockId), 100);
+}
+
 
 
 // ═══════════════════════════════════════════════════════════════
@@ -1182,6 +1449,7 @@ async function loadStock(){
   updateQuote(data,id);
   renderCharts(data);
   renderVP(data);
+  updateCostLine(data);
   const sigs=detectSignals(data);
   updateScoreUI(sigs);
   renderSignals(sigs);
@@ -1403,14 +1671,401 @@ function showToast(msg){
 // TAB / UI HELPERS
 // ═══════════════════════════════════════════════════════════════
 function switchTab(name){
-  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',['chart','chips','signals','scanner','alerts','notify'][i]===name));
+  const tabNames=['chart','chips','signals','scanner','watchboard','compare','portfolio','backtest','alerts','notify'];
+  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',tabNames[i]===name));
   document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
   document.getElementById('tab-'+name).classList.add('active');
   if(name==='signals'){renderSignals(_curSigs);renderHistory();}
   if(name==='chips'&&rawData.length)renderChips(currentStock);
   if(name==='alerts'){renderAlerts();renderAlertHistory();}
   if(name==='notify'){initNotifyTab();}
+  if(name==='watchboard')refreshWatchboard();
+  if(name==='portfolio')refreshPortfolio();
   if(name==='chart')setTimeout(()=>{kChart&&kChart.timeScale().fitContent();},60);
+  if(name==='compare'&&_cmpChart)setTimeout(()=>_cmpChart.timeScale().fitContent(),60);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ★★★ V4 新功能：自選股看板、多股比較、持股損益、回測、籌碼圖、主力成本 ★★★
+// ═══════════════════════════════════════════════════════════════
+
+// ── 1. 自選股看板 ──────────────────────────────────────────────
+let _wbData={}, _wbLoading=false;
+
+async function refreshWatchboard(){
+  if(_wbLoading)return;
+  _wbLoading=true;
+  const grid=document.getElementById('wbGrid');
+  grid.innerHTML=scanList.slice(0,20).map(id=>`<div class="chip-card" id="wb-${id}" style="cursor:pointer;min-height:80px" onclick="quickLoad('${id}');switchTab('chart')"><div style="font-size:11px;color:var(--text3);font-family:var(--mono)">${id}</div><div style="font-size:13px;font-weight:700;color:var(--text2);margin:4px 0">${NAMES[id]||id}</div><div class="spinner" style="width:14px;height:14px;margin:6px 0"></div></div>`).join('');
+  const promises=scanList.slice(0,20).map(async id=>{
+    const data=_wbData[id]||await fetchData(id);
+    if(data&&data.length>2){
+      _wbData[id]=data;
+      const last=data[data.length-1], prev=data[data.length-2];
+      const chg=last.close-prev.close, pct=chg/prev.close*100, up=chg>=0;
+      const vols=data.map(d=>d.volume), vol20=vols.slice(-21,-1).reduce((a,b)=>a+b,0)/20;
+      const vr=last.volume/vol20;
+      const el=document.getElementById('wb-'+id);
+      if(!el)return;
+      const sigs=detectSignals(data);
+      const sigBadge=sigs.length?`<span class="badge badge-${sigs[0].type==='bullish'?'bull':sigs[0].type==='bearish'?'bear':'warn'}" style="font-size:9px">${sigs[0].badgeText}</span>`:'';
+      el.innerHTML=`
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div><span style="font-size:11px;font-family:var(--mono);color:var(--text3)">${id}</span><br><span style="font-size:12px;font-weight:700;color:var(--text)">${NAMES[id]||id}</span></div>
+          <div style="text-align:right"><div style="font-size:16px;font-weight:700;font-family:var(--mono);color:${up?'var(--red)':'var(--green)'}">${last.close.toFixed(1)}</div><div style="font-size:10px;color:${up?'var(--red)':'var(--green)'}">${up?'▲':'▼'}${Math.abs(pct).toFixed(2)}%</div></div>
+        </div>
+        <div style="display:flex;gap:4px;margin-top:6px;flex-wrap:wrap">
+          ${vr>2?'<span class="badge badge-bull" style="font-size:9px">爆量</span>':vr<0.4?'<span class="badge badge-warn" style="font-size:9px">量縮</span>':''}
+          ${sigBadge}
+          <span style="font-size:9px;color:var(--text3);margin-left:auto">量比${vr.toFixed(1)}x</span>
+        </div>`;
+    }
+  });
+  await Promise.all(promises);
+  _wbLoading=false;
+  sortWatchboard();
+}
+
+function sortWatchboard(){
+  const sort=document.getElementById('wbSort')?.value||'default';
+  const filter=document.getElementById('wbFilter')?.value||'all';
+  const grid=document.getElementById('wbGrid');
+  const cards=[...grid.children];
+  const getVal=(id,key)=>{
+    const d=_wbData[id];if(!d||d.length<2)return 0;
+    const last=d[d.length-1],prev=d[d.length-2];
+    if(key==='pct')return(last.close-prev.close)/prev.close*100;
+    if(key==='vr'){const v=d.map(x=>x.volume),v20=v.slice(-21,-1).reduce((a,b)=>a+b,0)/20;return last.volume/v20;}
+    return 0;
+  };
+  cards.sort((a,b)=>{
+    const ia=a.id.replace('wb-',''), ib=b.id.replace('wb-','');
+    if(sort==='change_desc')return getVal(ib,'pct')-getVal(ia,'pct');
+    if(sort==='change_asc')return getVal(ia,'pct')-getVal(ib,'pct');
+    if(sort==='vol_desc')return getVal(ib,'vr')-getVal(ia,'vr');
+    return 0;
+  });
+  const filtered=cards.filter(c=>{
+    const id=c.id.replace('wb-',''), d=_wbData[id];
+    if(!d||d.length<2)return filter==='all';
+    const last=d[d.length-1],prev=d[d.length-2];
+    const pct=(last.close-prev.close)/prev.close*100;
+    const v=d.map(x=>x.volume),v20=v.slice(-21,-1).reduce((a,b)=>a+b,0)/20,vr=last.volume/v20;
+    if(filter==='up')return pct>0;
+    if(filter==='down')return pct<0;
+    if(filter==='vol')return vr>1.8||vr<0.4;
+    return true;
+  });
+  grid.innerHTML='';
+  filtered.forEach(c=>grid.appendChild(c));
+}
+
+// ── 2. 多股比較 ─────────────────────────────────────────────────
+let _cmpChart=null, _cmpSerA=null, _cmpSerB=null, _cmpPeriod='3m';
+
+function setCmpPeriod(p){
+  _cmpPeriod=p;
+  document.querySelectorAll('[id^="cmpP-"]').forEach(b=>b.classList.toggle('active',b.id==='cmpP-'+p));
+  if(document.getElementById('cmpStockA').value&&document.getElementById('cmpStockB').value)runCompare();
+}
+
+async function runCompare(){
+  const idA=(document.getElementById('cmpStockA').value||'').trim().toUpperCase()||currentStock;
+  const idB=(document.getElementById('cmpStockB').value||'').trim().toUpperCase();
+  if(!idB){showToast('⚠️ 請輸入股票B');return;}
+  showToast('📊 載入比較資料...');
+  const wrap=document.getElementById('cmpChartWrap');
+  wrap.querySelector('.empty')&&(wrap.querySelector('.empty').style.display='none');
+  const prevP=currentPeriod; currentPeriod=_cmpPeriod;
+  const [dataA,dataB]=await Promise.all([fetchData(idA),fetchData(idB)]);
+  currentPeriod=prevP;
+  if(!dataA?.length||!dataB?.length){showToast('✗ 資料載入失敗');return;}
+
+  // 正規化到起點=100
+  const normalize=data=>{const base=data[0].close;return data.map(d=>({time:d.time,value:+(d.close/base*100).toFixed(2)}));};
+
+  const normA=normalize(dataA), normB=normalize(dataB);
+
+  // 建立或更新比較圖
+  if(!_cmpChart){
+    const o={layout:{background:{color:'#131c2e'},textColor:'#94a3b8'},grid:{vertLines:{color:'#1a2235'},horzLines:{color:'#1a2235'}},crosshair:{mode:1},rightPriceScale:{borderColor:'#1e2d45'},timeScale:{borderColor:'#1e2d45',timeVisible:true},handleScroll:true,handleScale:true};
+    _cmpChart=LightweightCharts.createChart(document.getElementById('cmpChart'),{...o,height:260});
+    _cmpSerA=_cmpChart.addLineSeries({color:'#00d4ff',lineWidth:2,priceLineVisible:false});
+    _cmpSerB=_cmpChart.addLineSeries({color:'#f59e0b',lineWidth:2,priceLineVisible:false});
+  }
+  _cmpSerA.setData(normA);
+  _cmpSerB.setData(normB);
+  setTimeout(()=>_cmpChart.timeScale().fitContent(),80);
+
+  // 統計卡片
+  const stats=(id,data)=>{
+    const last=data[data.length-1],first=data[0];
+    const totalRet=((last.close-first.close)/first.close*100).toFixed(2);
+    const prices=data.map(d=>d.close);
+    const maxDD=(()=>{let peak=prices[0],dd=0;prices.forEach(p=>{peak=Math.max(peak,p);dd=Math.min(dd,(p-peak)/peak*100);});return dd.toFixed(2);})();
+    const vols=data.map(d=>d.volume),avgVol=(vols.reduce((a,b)=>a+b,0)/vols.length/1000).toFixed(0);
+    return{id,name:NAMES[id]||id,totalRet,maxDD,avgVol,last:last.close,color:id===idA?'#00d4ff':'#f59e0b'};
+  };
+  const sa=stats(idA,dataA), sb=stats(idB,dataB);
+  document.getElementById('cmpStats').innerHTML=[sa,sb].map(s=>`
+    <div class="chip-card">
+      <div style="font-size:11px;font-family:var(--mono);color:${s.color};font-weight:700">${s.id} ${s.name}</div>
+      <div style="margin-top:6px;display:flex;flex-direction:column;gap:3px">
+        <div style="display:flex;justify-content:space-between;font-size:11px"><span style="color:var(--text3)">區間報酬</span><span style="font-family:var(--mono);color:${parseFloat(s.totalRet)>=0?'var(--red)':'var(--green)'}">${s.totalRet>0?'+':''}${s.totalRet}%</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:11px"><span style="color:var(--text3)">最大回撤</span><span style="font-family:var(--mono);color:var(--green)">${s.maxDD}%</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:11px"><span style="color:var(--text3)">均量</span><span style="font-family:var(--mono);color:var(--text)">${s.avgVol}K張</span></div>
+      </div>
+    </div>`).join('');
+
+  // 相關係數
+  const overlap=normA.filter(a=>normB.some(b=>b.time===a.time));
+  const retA=overlap.map((a,i)=>i===0?0:(a.value-overlap[i-1].value)/overlap[i-1].value);
+  const retB=overlap.map((a,i)=>{const b=normB.find(x=>x.time===a.time);const pb=i===0?null:normB.find(x=>x.time===overlap[i-1].time);return(!b||!pb)?0:(b.value-pb.value)/pb.value;});
+  const mean=arr=>arr.reduce((a,b)=>a+b,0)/arr.length;
+  const mA=mean(retA),mB=mean(retB);
+  const cov=retA.reduce((s,a,i)=>s+(a-mA)*(retB[i]-mB),0)/retA.length;
+  const stdA=Math.sqrt(retA.reduce((s,a)=>s+(a-mA)**2,0)/retA.length);
+  const stdB=Math.sqrt(retB.reduce((s,b)=>s+(b-mB)**2,0)/retB.length);
+  const corr=stdA&&stdB?cov/(stdA*stdB):0;
+  const corrLabel=corr>0.7?'高度正相關':corr>0.3?'中度正相關':corr>-0.3?'低相關':corr>-0.7?'中度負相關':'高度負相關';
+  const relStr=((sa.last/dataA[0].close)/(sb.last/dataB[0].close)-1)*100;
+  document.getElementById('cmpCorr').innerHTML=`
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div style="text-align:center"><div style="font-size:11px;color:var(--text3);margin-bottom:4px">相關係數</div><div style="font-size:22px;font-weight:700;font-family:var(--mono);color:var(--accent)">${corr.toFixed(2)}</div><div style="font-size:10px;color:var(--text2);margin-top:2px">${corrLabel}</div></div>
+      <div style="text-align:center"><div style="font-size:11px;color:var(--text3);margin-bottom:4px">${idA} vs ${idB} 相對強弱</div><div style="font-size:22px;font-weight:700;font-family:var(--mono);color:${relStr>=0?'var(--red)':'var(--green)'}">${relStr>=0?'+':''}${relStr.toFixed(1)}%</div><div style="font-size:10px;color:var(--text2);margin-top:2px">${relStr>=0?idA+'較強':idB+'較強'}</div></div>
+    </div>
+    <div style="margin-top:10px;display:flex;gap:8px;justify-content:center">
+      <div style="font-size:11px;color:var(--text2)"><span style="display:inline-block;width:14px;height:2px;background:#00d4ff;vertical-align:middle;margin-right:4px"></span>${idA} ${NAMES[idA]||''}</div>
+      <div style="font-size:11px;color:var(--text2)"><span style="display:inline-block;width:14px;height:2px;background:#f59e0b;vertical-align:middle;margin-right:4px"></span>${idB} ${NAMES[idB]||''}</div>
+    </div>`;
+  showToast(`✓ ${idA} vs ${idB} 比較完成`);
+}
+
+// ── 3. 持股損益 ─────────────────────────────────────────────────
+let portfolio=JSON.parse(localStorage.getItem('portfolio')||'[]');
+
+function addPortfolioItem(){
+  const stock=document.getElementById('pf-stock').value.trim().toUpperCase();
+  const price=parseFloat(document.getElementById('pf-price').value);
+  const lots=parseInt(document.getElementById('pf-lots').value);
+  const note=document.getElementById('pf-note').value.trim();
+  if(!stock||!price||!lots){showToast('⚠️ 請填入代號、買入價、張數');return;}
+  portfolio.push({stock,price,lots,note,addedAt:new Date().toLocaleDateString('zh-TW')});
+  localStorage.setItem('portfolio',JSON.stringify(portfolio));
+  document.getElementById('pf-stock').value='';
+  document.getElementById('pf-price').value='';
+  document.getElementById('pf-lots').value='';
+  document.getElementById('pf-note').value='';
+  refreshPortfolio();
+  showToast(`✓ 已新增 ${stock}`);
+}
+
+async function refreshPortfolio(){
+  const list=document.getElementById('pfList');
+  const summary=document.getElementById('pfSummary');
+  if(!portfolio.length){list.innerHTML='<div class="empty">尚無持股紀錄</div>';summary.style.display='none';return;}
+  summary.style.display='';
+  list.innerHTML=portfolio.map((p,i)=>`<div class="chip-card" style="cursor:pointer" id="pf-item-${i}">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div><span style="font-size:13px;font-weight:700;font-family:var(--mono);color:var(--accent)">${p.stock}</span> <span style="font-size:11px;color:var(--text2)">${NAMES[p.stock]||''}</span></div>
+      <button onclick="removePortfolioItem(${i})" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px;padding:2px 6px">×</button>
+    </div>
+    <div style="font-size:11px;color:var(--text3);margin-top:4px">買入均價 <span style="font-family:var(--mono);color:var(--text)">${p.price}</span> · ${p.lots} 張 · 成本 <span style="font-family:var(--mono);color:var(--text)">${(p.price*p.lots*1000/10000).toFixed(0)}萬</span></div>
+    <div id="pf-pnl-${i}" style="margin-top:6px;font-size:12px;color:var(--text3)">計算中...</div>
+  </div>`).join('');
+
+  let totalCost=0, totalVal=0;
+  for(let i=0;i<portfolio.length;i++){
+    const p=portfolio[i];
+    const data=_wbData[p.stock]||await fetchData(p.stock);
+    if(data&&data.length){_wbData[p.stock]=data;}
+    const curPrice=data?.length?data[data.length-1].close:null;
+    const el=document.getElementById('pf-pnl-'+i);
+    if(!el)continue;
+    if(curPrice){
+      const pnl=(curPrice-p.price)*p.lots*1000;
+      const pnlPct=(curPrice-p.price)/p.price*100;
+      const up=pnl>=0;
+      el.innerHTML=`<div style="display:flex;gap:12px;align-items:center">
+        <span style="color:var(--text2)">現價 <span style="font-family:var(--mono);font-weight:700;color:${up?'var(--red)':'var(--green)'}">${curPrice.toFixed(1)}</span></span>
+        <span style="color:var(--text2)">損益 <span style="font-family:var(--mono);font-weight:700;color:${up?'var(--red)':'var(--green)'}">${up?'+':''}${(pnl/10000).toFixed(1)}萬</span></span>
+        <span class="badge badge-${up?'bull':'bear'}">${up?'+':''}${pnlPct.toFixed(2)}%</span>
+      </div>`;
+      totalCost+=p.price*p.lots*1000;
+      totalVal+=curPrice*p.lots*1000;
+    } else {
+      el.textContent='無法取得現價';
+    }
+  }
+  const totalPnl=totalVal-totalCost, up=totalPnl>=0;
+  document.getElementById('pfTotalCost').textContent=(totalCost/10000).toFixed(0)+'萬';
+  document.getElementById('pfTotalVal').textContent=(totalVal/10000).toFixed(0)+'萬';
+  const pnlEl=document.getElementById('pfTotalPnl');
+  pnlEl.textContent=(up?'+':'')+(totalPnl/10000).toFixed(1)+'萬';
+  pnlEl.className='chip-val '+(up?'buy':'sell');
+}
+
+function removePortfolioItem(i){
+  if(!confirm('確定刪除此持股？'))return;
+  portfolio.splice(i,1);
+  localStorage.setItem('portfolio',JSON.stringify(portfolio));
+  refreshPortfolio();
+}
+
+// ── 4. 歷史回測 ─────────────────────────────────────────────────
+async function runBacktest(){
+  const stockInput=document.getElementById('bt-stock').value.trim().toUpperCase();
+  const stockId=stockInput||currentStock;
+  const signal=document.getElementById('bt-signal').value;
+  const holdDays=parseInt(document.getElementById('bt-hold').value);
+  const results=document.getElementById('btResults');
+  results.innerHTML='<div class="empty">回測中，請稍候...</div>';
+  showToast('🔍 回測中...');
+
+  const prevP=currentPeriod; currentPeriod='2y';
+  const data=await fetchData(stockId);
+  currentPeriod=prevP;
+  if(!data||data.length<60){results.innerHTML='<div class="empty">資料不足，無法回測</div>';return;}
+
+  const triggers=[];
+  for(let i=30;i<data.length-holdDays;i++){
+    const slice=data.slice(0,i+1);
+    const sigs=detectSignals(slice);
+    if(sigs.some(s=>s.id===signal)){
+      // 檢查前5日沒有重複觸發
+      const recentTrigger=triggers.find(t=>i-t.idx<5);
+      if(!recentTrigger){
+        const entryPrice=data[i].close;
+        const exitPrice=data[i+holdDays]?.close;
+        if(exitPrice){
+          const ret=(exitPrice-entryPrice)/entryPrice*100;
+          triggers.push({idx:i,date:new Date(data[i].time*1000).toLocaleDateString('zh-TW'),entry:entryPrice,exit:exitPrice,ret,win:ret>0});
+        }
+      }
+    }
+  }
+
+  if(!triggers.length){results.innerHTML='<div class="empty">此期間未找到觸發點</div>';return;}
+  const wins=triggers.filter(t=>t.win).length;
+  const winRate=wins/triggers.length*100;
+  const avgRet=triggers.reduce((s,t)=>s+t.ret,0)/triggers.length;
+  const avgWin=triggers.filter(t=>t.win).reduce((s,t)=>s+t.ret,0)/(wins||1);
+  const avgLoss=triggers.filter(t=>!t.win).reduce((s,t)=>s+t.ret,0)/((triggers.length-wins)||1);
+  const signalLabels={kd_golden:'KD黃金交叉',kd_dead:'KD死叉',macd_golden:'MACD金叉',break_ma20:'穿越20MA',break_high:'突破前高',rsi_os:'RSI超賣',vol_surge:'爆量'};
+
+  results.innerHTML=`
+    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px">
+      <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:12px">${stockId} ${NAMES[stockId]||''} — ${signalLabels[signal]||signal} / 持有${holdDays}日</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;text-align:center;margin-bottom:12px">
+        <div><div style="font-size:10px;color:var(--text3)">觸發次數</div><div style="font-size:20px;font-weight:700;font-family:var(--mono);color:var(--text)">${triggers.length}</div></div>
+        <div><div style="font-size:10px;color:var(--text3)">勝率</div><div style="font-size:20px;font-weight:700;font-family:var(--mono);color:${winRate>=50?'var(--red)':'var(--green)'}">${winRate.toFixed(0)}%</div></div>
+        <div><div style="font-size:10px;color:var(--text3)">平均報酬</div><div style="font-size:20px;font-weight:700;font-family:var(--mono);color:${avgRet>=0?'var(--red)':'var(--green)'}">${avgRet>=0?'+':''}${avgRet.toFixed(2)}%</div></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div style="background:rgba(239,68,68,.1);border-radius:8px;padding:8px;text-align:center"><div style="font-size:10px;color:var(--text3)">平均獲利</div><div style="font-size:14px;font-weight:700;font-family:var(--mono);color:var(--red)">+${avgWin.toFixed(2)}%</div></div>
+        <div style="background:rgba(16,185,129,.1);border-radius:8px;padding:8px;text-align:center"><div style="font-size:10px;color:var(--text3)">平均虧損</div><div style="font-size:14px;font-weight:700;font-family:var(--mono);color:var(--green)">${avgLoss.toFixed(2)}%</div></div>
+      </div>
+    </div>
+    <div style="font-size:12px;color:var(--text2);font-weight:700;margin-bottom:6px">各次觸發明細（最近20筆）</div>
+    ${triggers.slice(-20).reverse().map(t=>`
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 10px;background:var(--bg3);border-radius:8px;margin-bottom:4px;border-left:3px solid ${t.win?'var(--red)':'var(--green)'}">
+        <div style="font-size:11px;color:var(--text2);font-family:var(--mono)">${t.date}</div>
+        <div style="font-size:11px;font-family:var(--mono)">進 ${t.entry.toFixed(1)} → 出 ${t.exit.toFixed(1)}</div>
+        <div style="font-size:12px;font-weight:700;font-family:var(--mono);color:${t.win?'var(--red)':'var(--green)'}">${t.ret>=0?'+':''}${t.ret.toFixed(2)}%</div>
+      </div>`).join('')}
+    <div style="font-size:10px;color:var(--text3);margin-top:8px;line-height:1.6">⚠️ 回測結果僅供參考，過去績效不代表未來表現。未計入交易成本與滑價。</div>`;
+  showToast(`✓ 回測完成：${triggers.length} 次觸發，勝率 ${winRate.toFixed(0)}%`);
+}
+
+// ── 5. 籌碼集中度趨勢圖（加入籌碼頁籤） ────────────────────────
+function renderChipTrend(stockId){
+  // 用 rawData 估算近10日籌碼集中度（法人買賣超趨勢以成交量與價格變化代理）
+  if(!rawData||rawData.length<10)return;
+  const recent=rawData.slice(-10);
+  const el=document.getElementById('chipTrendChart');
+  if(!el)return;
+  const w=el.offsetWidth||300, h=120, dpr=window.devicePixelRatio||1;
+  el.width=w*dpr; el.height=h*dpr; el.style.width=w+'px'; el.style.height=h+'px';
+  const ctx=el.getContext('2d'); ctx.scale(dpr,dpr);
+  const vols=rawData.map(d=>d.volume), vol20avg=vols.slice(-21,-1).reduce((a,b)=>a+b,0)/20;
+  const vals=recent.map(d=>{const vr=d.volume/vol20avg; return d.close>=d.open?vr:-vr;});
+  const maxAbs=Math.max(...vals.map(Math.abs),0.01);
+  const padL=36, padR=8, padT=10, padB=28;
+  const bw=(w-padL-padR)/recent.length;
+  ctx.clearRect(0,0,w,h);
+  // zero line
+  const midY=padT+(h-padT-padB)/2;
+  ctx.strokeStyle='rgba(71,85,105,.4)'; ctx.lineWidth=0.5; ctx.setLineDash([3,3]);
+  ctx.beginPath(); ctx.moveTo(padL,midY); ctx.lineTo(w-padR,midY); ctx.stroke(); ctx.setLineDash([]);
+  vals.forEach((v,i)=>{
+    const x=padL+i*bw+2, barH=(v/maxAbs)*(h-padT-padB)/2;
+    const up=v>=0;
+    ctx.fillStyle=up?'rgba(239,68,68,.7)':'rgba(16,185,129,.7)';
+    ctx.fillRect(x, up?midY-barH:midY, bw-4, Math.abs(barH));
+    // date label
+    const d=recent[i], tw=new Date(d.time*1000).toLocaleDateString('zh-TW',{month:'numeric',day:'numeric'});
+    ctx.fillStyle='#475569'; ctx.font='9px JetBrains Mono, monospace'; ctx.textAlign='center';
+    ctx.fillText(tw,x+(bw-4)/2,h-8);
+  });
+  ctx.fillStyle='#475569'; ctx.font='9px Noto Sans TC, sans-serif'; ctx.textAlign='right';
+  ctx.fillText('多',padL-4,padT+10); ctx.fillText('空',padL-4,h-padB-2);
+}
+
+// ── 6. 主力成本計算（在K線圖疊加） ─────────────────────────────
+let _costLineSeries=null;
+
+function calcMainForce(data){
+  if(!data||data.length<10)return null;
+  // 以高量區的成交均價計算主力加權成本
+  const vols=data.map(d=>d.volume), maxVol=Math.max(...vols);
+  const threshold=maxVol*0.4;
+  const heavy=data.filter(d=>d.volume>threshold);
+  if(!heavy.length)return null;
+  const totalVol=heavy.reduce((s,d)=>s+d.volume,0);
+  const wavg=heavy.reduce((s,d)=>s+d.volume*(d.open+d.close)/2,0)/totalVol;
+  return +wavg.toFixed(1);
+}
+
+function updateCostLine(data){
+  if(!kChart)return;
+  const cost=calcMainForce(data);
+  if(!cost)return;
+  if(!_costLineSeries){
+    _costLineSeries=kChart.addLineSeries({color:'rgba(245,158,11,.6)',lineWidth:1,lineStyle:2,priceLineVisible:false,lastValueVisible:true,title:'主力成本'});
+  }
+  _costLineSeries.setData(data.map(d=>({time:d.time,value:cost})));
+}
+
+// Worker 早盤摘要與連續買超（強化 notify tab）
+async function sendMorningSummary(){
+  showToast('📤 發送早盤摘要...');
+  try{
+    const data=await workerFetch('/morning-summary','POST',{stocks:scanList.slice(0,10)});
+    showToast('✅ 早盤摘要已發送');
+  }catch(e){
+    // 若 Worker 尚未部署此端點，在前端組成訊息
+    const lines=[`📊 早盤摘要 ${new Date().toLocaleDateString('zh-TW')}`,''];
+    for(const id of scanList.slice(0,8)){
+      const d=_wbData[id]; if(!d?.length)continue;
+      const last=d[d.length-1],prev=d[d.length-2];
+      const pct=((last.close-prev.close)/prev.close*100).toFixed(2);
+      lines.push(`${id} ${NAMES[id]||''}: ${last.close} (${pct>0?'+':''}${pct}%)`);
+    }
+    lines.push('','⚠️ 僅供參考，非投資建議');
+    showToast('✓ 摘要已準備（需連線 Worker 發送）');
+    alert(lines.join('\n'));
+  }
+}
+
+function syncConsecAlert(){
+  const days=document.getElementById('consecDays')?.value||5;
+  const type=document.getElementById('consecType')?.value||'fii';
+  const label={'fii':'外資','total':'三大法人合計'}[type]||type;
+  const existing=alerts.findIndex(a=>a.type==='consec_buy');
+  const entry={stock:'ALL',type:'consec_buy',param:days,note:`${label}連續${days}日買超`,enabled:true,createdAt:new Date().toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})};
+  if(existing>=0)alerts[existing]=entry; else alerts.push(entry);
+  localStorage.setItem('alertDefs',JSON.stringify(alerts));
+  showToast(`✓ 已設定：${label}連續${days}日買超通知`);
 }
 
 function initWatchlist(){
