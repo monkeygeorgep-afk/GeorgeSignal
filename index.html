@@ -358,6 +358,8 @@ input:checked+.toggle-track::before{transform:translateX(18px)}
     </div>
 
     <div class="section-title" id="chipSectionTitle">三大法人（今日）</div>
+    <!-- 資料來源警示 -->
+    <div id="chipsNoWorkerWarning"></div>
     <!-- 數字卡片 -->
     <div class="chips-grid">
       <div class="chip-card"><div class="chip-lbl">外資</div><div class="chip-val" id="cFii">--</div><div class="chip-sub" id="cFiiSub">張</div></div>
@@ -1313,32 +1315,44 @@ async function renderChips(stockId) {
   };
   const dayLabel = { 1:'今日', 3:'三日', 5:'五日', 10:'十日' }[currentChipDay] || '';
 
-  // 取法人資料
+  // 取法人資料（Worker → TWSE 官方，單位：張）
   let realData = await fetchInstitutionalDays(stockId, currentChipDay);
 
-  // 無 Worker 則用示範資料
+  // 無 Worker 則用示範資料（以合理的台積電等級數字示意）
   if (!realData) {
     const sg = () => Math.random() > 0.45 ? 1 : -1;
+    // 示範數字：以「張」為單位（台積電外資日買賣超約數千至數萬張）
     const base = currentChipDay;
     realData = {
-      fii:    sg() * Math.floor(Math.random() * 18000 * base + 500),
-      it:     sg() * Math.floor(Math.random() *  4000 * base + 100),
-      dealer: sg() * Math.floor(Math.random() *  2500 * base +  50),
+      fii:    sg() * Math.floor((Math.random() * 8000 + 500) * base),
+      it:     sg() * Math.floor((Math.random() * 1500 + 100) * base),
+      dealer: sg() * Math.floor((Math.random() *  800 +  50) * base),
       isReal: false,
     };
     realData.total = realData.fii + realData.it + realData.dealer;
   }
 
-  const suffix = realData.isReal ? `（${dayLabel}）` : `（${dayLabel}，示範）`;
-  setC('cFii', realData.fii);    $('cFiiSub').textContent = '張' + suffix;
-  setC('cIt',  realData.it);     $('cItSub').textContent  = '張' + suffix;
-  setC('cDealer', realData.dealer); $('cDealerSub').textContent = '張' + suffix;
-  setC('cTotal', realData.total);   $('cTotalSub').textContent  = '張' + suffix;
+  // 顯示資料來源標示
+  const srcNote = realData.isReal
+    ? `張（TWSE 真實，${dayLabel}）`
+    : `張（${dayLabel}，示範數字）`;
+  const noWorkerNote = !workerConfig.url
+    ? '<div style="font-size:10px;color:var(--amber);margin-bottom:8px;padding:6px 10px;background:rgba(245,158,11,.1);border-radius:6px">⚠️ 未連線 Worker，顯示示範數字。請至「🔔 Line通知」頁籤設定 Worker URL 以取得真實法人資料。</div>'
+    : '';
+
+  // 插入提示
+  const warningEl = document.getElementById('chipsNoWorkerWarning');
+  if (warningEl) warningEl.innerHTML = noWorkerNote;
+
+  setC('cFii',    realData.fii);    $('cFiiSub').textContent    = srcNote;
+  setC('cIt',     realData.it);     $('cItSub').textContent     = srcNote;
+  setC('cDealer', realData.dealer); $('cDealerSub').textContent = srcNote;
+  setC('cTotal',  realData.total);  $('cTotalSub').textContent  = `張（${dayLabel}合計）`;
   renderChipBars(realData.fii, realData.it, realData.dealer);
 
-  // 融資券（示範）
-  const margin = Math.floor(30000 + Math.random() * 50000);
-  const shortV = Math.floor(500   + Math.random() *  3000);
+  // 融資券（示範，單位：張）
+  const margin = Math.floor(20000 + Math.random() * 40000);
+  const shortV = Math.floor(300   + Math.random() *  2000);
   $('cMargin').textContent = margin.toLocaleString(); $('cMarginSub').textContent = '張（融資）';
   $('cShort').textContent  = shortV.toLocaleString(); $('cShortSub').textContent  = '張（融券）';
   $('cBoard').textContent  = '--';
